@@ -1,0 +1,499 @@
+import math
+from collections import defaultdict
+from typing import List, Dict, Any
+
+from nonebot import on_command, on_message, on_notice, on_regex, get_driver
+from nonebot.log import logger
+from nonebot.permission import Permission
+from nonebot.typing import T_State
+from nonebot.adapters import Event, Bot
+from nonebot.adapters.cqhttp import Message, MessageSegment, GroupMessageEvent, PrivateMessageEvent
+from src.libraries.maimaidx_guess import GuessObject
+
+from src.libraries.tool import hash
+from src.libraries.maimaidx_music import *
+from src.libraries.image import *
+from src.libraries.maimai_best_40 import generate
+import requests
+import json
+import random
+import time
+import re
+from urllib import parse
+
+
+driver = get_driver()
+
+
+@driver.on_startup
+def _():
+    logger.info("Load help text successfully")
+    help_text: dict = get_driver().config.help_text
+    help_text['mai'] = ('查看舞萌相关功能', """19岁，是妹妹。
+可用命令如下：
+今日舞萌 查看今天的舞萌运势
+XXXmaimaiXXX什么 随机一首歌
+随个[dx/标准][绿黄红紫白]<难度> 随机一首指定条件的乐曲
+查歌<乐曲标题的一部分> 查询符合条件的乐曲
+[绿黄红紫白]id<歌曲编号> 查询乐曲信息或谱面信息
+<歌曲别名>是什么歌 查询乐曲别名对应的乐曲
+定数查歌 <定数>  查询定数对应的乐曲
+定数查歌 <定数下限> <定数上限>
+分数线 <难度+歌曲id> <分数线> 详情请输入“分数线 帮助”查看""")
+
+
+def song_txt(music: Music):
+    return Message([
+        {
+            "type": "text",
+            "data": {
+                "text": f"{music.id}. {music.title}\n"
+            }
+        },
+        {
+            "type": "image",
+            "data": {
+                "file": f"https://www.diving-fish.com/covers/{music.id}.jpg"
+            }
+        },
+        {
+            "type": "text",
+            "data": {
+                "text": f"\n{'/'.join(music.level)}"
+            }
+        }
+    ])
+
+
+def inner_level_q(ds1, ds2=None):
+    result_set = []
+    diff_label = ['Bas', 'Adv', 'Exp', 'Mst', 'ReM']
+    if ds2 is not None:
+        music_data = total_list.filter(ds=(ds1, ds2))
+    else:
+        music_data = total_list.filter(ds=ds1)
+    for music in music_data:
+        for i in music.diff:
+            result_set.append((music['id'], music['title'], music['ds'][i], diff_label[i], music['level'][i]))
+    return result_set
+
+
+inner_level = on_command('inner_level ', aliases={'定数查歌 '})
+
+
+@inner_level.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    argv = str(event.get_message()).strip().split(" ")
+    if len(argv) > 2 or len(argv) == 0:
+        await inner_level.finish("命令格式为\n定数查歌 <定数>\n定数查歌 <定数下限> <定数上限>")
+        return
+    if len(argv) == 1:
+        result_set = inner_level_q(float(argv[0]))
+    else:
+        result_set = inner_level_q(float(argv[0]), float(argv[1]))
+    if len(result_set) > 50:
+        await inner_level.finish("数据超出 50 条，请尝试缩小查询范围")
+        return
+    s = ""
+    for elem in result_set:
+        s += f"{elem[0]}. {elem[1]} {elem[3]} {elem[4]}({elem[2]})\n"
+    await inner_level.finish(s.strip())
+
+
+spec_rand = on_regex(r"^随个(?:dx|sd|标准)?[绿黄红紫白]?[0-9]+\+?")
+
+
+@spec_rand.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    level_labels = ['绿', '黄', '红', '紫', '白']
+    regex = "随个((?:dx|sd|标准))?([绿黄红紫白]?)([0-9]+\+?)"
+    res = re.match(regex, str(event.get_message()).lower())
+    try:
+        if res.groups()[0] == "dx":
+            tp = ["DX"]
+        elif res.groups()[0] == "sd" or res.groups()[0] == "标准":
+            tp = ["SD"]
+        else:
+            tp = ["SD", "DX"]
+        level = res.groups()[2]
+        if res.groups()[1] == "":
+            music_data = total_list.filter(level=level, type=tp)
+        else:
+            music_data = total_list.filter(level=level, diff=['绿黄红紫白'.index(res.groups()[1])], type=tp)
+        await spec_rand.send(song_txt(music_data.random()))
+    except Exception as e:
+        print(e)
+        await spec_rand.finish("随机命令错误，请检查语法")
+
+
+mr = on_regex(r".*maimai.*什么")
+
+
+@mr.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    await mr.finish(song_txt(total_list.random()))
+
+
+search_music = on_regex(r"^查歌.+")
+
+
+@search_music.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    regex = "查歌(.+)"
+    name = re.match(regex, str(event.get_message())).groups()[0].strip()
+    if name == "":
+        return
+    res = total_list.filter(title_search=name)
+    await search_music.finish(Message([
+        {"type": "text",
+            "data": {
+                "text": f"{music['id']}. {music['title']}\n"
+            }} for music in res]))
+
+
+query_chart = on_regex(r"^([绿黄红紫白]?)id([0-9]+)")
+
+
+@query_chart.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    regex = "([绿黄红紫白]?)id([0-9]+)"
+    groups = re.match(regex, str(event.get_message())).groups()
+    level_labels = ['绿', '黄', '红', '紫', '白']
+    if groups[0] != "":
+        try:
+            level_index = level_labels.index(groups[0])
+            level_name = ['Basic', 'Advanced', 'Expert', 'Master', 'Re: MASTER']
+            name = groups[1]
+            music = total_list.by_id(name)
+            chart = music['charts'][level_index]
+            ds = music['ds'][level_index]
+            level = music['level'][level_index]
+            file = f"https://www.diving-fish.com/covers/{music['id']}.jpg"
+            if len(chart['notes']) == 4:
+                msg = f'''{level_name[level_index]} {level}({ds})
+TAP: {chart['notes'][0]}
+HOLD: {chart['notes'][1]}
+SLIDE: {chart['notes'][2]}
+BREAK: {chart['notes'][3]}
+谱师: {chart['charter']}
+'''
+            else:
+                msg = f'''{level_name[level_index]} {level}({ds})
+TAP: {chart['notes'][0]}
+HOLD: {chart['notes'][1]}
+SLIDE: {chart['notes'][2]}
+TOUCH: {chart['notes'][3]}
+BREAK: {chart['notes'][4]}
+谱师: {chart['charter']}
+'''
+            await query_chart.send(Message([
+                {
+                    "type": "text",
+                    "data": {
+                        "text": f"{music['id']}. {music['title']}\n"
+                    }
+                },
+                {
+                    "type": "image",
+                    "data": {
+                        "file": f"{file}"
+                    }
+                },
+                {
+                    "type": "text",
+                    "data": {
+                        "text": msg
+                    }
+                }
+            ]))
+        except Exception:
+            await query_chart.send("未找到该谱面")
+    else:
+        name = groups[1]
+        music = total_list.by_id(name)
+        try:
+            file = f"https://www.diving-fish.com/covers/{music['id']}.jpg"
+            await query_chart.send(Message([
+                {
+                    "type": "text",
+                    "data": {
+                        "text": f"{music['id']}. {music['title']}\n"
+                    }
+                },
+                {
+                    "type": "image",
+                    "data": {
+                        "file": f"{file}"
+                    }
+                },
+                {
+                    "type": "text",
+                    "data": {
+                        "text": f"艺术家: {music['basic_info']['artist']}\n分类: {music['basic_info']['genre']}\nBPM: {music['basic_info']['bpm']}\n版本: {music['basic_info']['from']}\n难度: {'/'.join(music['level'])}"
+                    }
+                }
+            ]))
+        except Exception:
+            await query_chart.send("未找到该乐曲")
+
+
+wm_list = ['拼机', '推分', '越级', '下埋', '夜勤', '练底力', '练手法', '打旧框', '干饭', '抓绝赞', '收歌']
+
+
+jrwm = on_command('今日舞萌', aliases={'今日mai'})
+
+
+@jrwm.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    qq = int(event.get_user_id())
+    h2 = hash(qq)
+    h = h2
+    rp = h % 100
+    wm_value = []
+    for i in range(11):
+        wm_value.append(h & 3)
+        h >>= 2
+    s = f"今日人品值：{rp}\n"
+    for i in range(11):
+        if wm_value[i] == 3:
+            s += f'宜 {wm_list[i]}\n'
+        elif wm_value[i] == 0:
+            s += f'忌 {wm_list[i]}\n'
+    s += "tpz妹妹提醒您：打机时不要大力拍打或滑动哦\n今日推荐歌曲："
+    music = total_list[h2 % len(total_list)]
+    await jrwm.finish(Message([
+        {"type": "text", "data": {"text": s}}
+    ] + song_txt(music)))
+
+
+music_aliases = defaultdict(list)
+f = open('src/static/aliases.csv', 'r', encoding='utf-8')
+tmp = f.readlines()
+f.close()
+for t in tmp:
+    arr = t.strip().split('\t')
+    for i in range(len(arr)):
+        if arr[i] != "":
+            music_aliases[arr[i].lower()].append(arr[0])
+
+
+find_song = on_regex(r".+是什么歌")
+
+
+@find_song.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    regex = "(.+)是什么歌"
+    name = re.match(regex, str(event.get_message())).groups()[0].strip().lower()
+    if name not in music_aliases:
+        await find_song.finish("未找到此歌曲\n舞萌 DX 歌曲别名收集计划：https://docs.qq.com/sheet/DQ0pvUHh6b1hjcGpl")
+        return
+    result_set = music_aliases[name]
+    if len(result_set) == 1:
+        music = total_list.by_title(result_set[0])
+        await find_song.finish(Message([{"type": "text", "data": {"text": "您要找的是不是"}}] + song_txt(music)))
+    else:
+        s = '\n'.join(result_set)
+        await find_song.finish(f"您要找的可能是以下歌曲中的其中一首：\n{ s }")
+
+
+query_score = on_command('分数线')
+query_score_text = '''此功能为查找某首歌分数线设计。
+命令格式：分数线 <难度+歌曲id> <分数线>
+例如：分数线 白337 100
+命令将返回分数线允许的 TAP GREAT 容错以及 BREAK 50落等价的 TAP GREAT 数。
+以下为 TAP GREAT 的对应表：
+GREAT/GOOD/MISS
+TAP    1/2.5/5
+HOLD   2/5/10
+SLIDE  3/7.5/15
+TOUCH  1/2.5/5
+BREAK  5/12.5/25(外加200落)'''
+query_score_mes = Message([{
+    "type": "image",
+    "data": {
+        "file": f"base64://{str(image_to_base64(text_to_image(query_score_text)), encoding='utf-8')}"
+    }
+}])
+
+
+@query_score.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    r = "([绿黄红紫白])(?:id)?([0-9]+)"
+    argv = str(event.get_message()).strip().split(" ")
+    if len(argv) == 1 and argv[0] == '帮助':
+        await query_score.send(query_score_mes)
+    elif len(argv) == 2:
+        try:
+            grp = re.match(r, argv[0]).groups()
+            level_labels = ['绿', '黄', '红', '紫', '白']
+            level_labels2 = ['Basic', 'Advanced', 'Expert', 'Master', 'Re:MASTER']
+            level_index = level_labels.index(grp[0])
+            chart_id = grp[1]
+            line = float(argv[1])
+            music = total_list.by_id(chart_id)
+            chart: Dict[Any] = music['charts'][level_index]
+            tap = int(chart['notes'][0])
+            slide = int(chart['notes'][2])
+            hold = int(chart['notes'][1])
+            touch = int(chart['notes'][3]) if len(chart['notes']) == 5 else 0
+            brk = int(chart['notes'][-1])
+            total_score = 500 * tap + slide * 1500 + hold * 1000 + touch * 500 + brk * 2500
+            break_bonus = 0.01 / brk
+            break_50_reduce = total_score * break_bonus / 4
+            reduce = 101 - line
+            if reduce <= 0 or reduce >= 101:
+                raise ValueError
+            await query_chart.send(f'''{music['title']} {level_labels2[level_index]}
+    分数线 {line}% 允许的最多 TAP GREAT 数量为 {(total_score * reduce / 10000):.2f}(每个-{10000 / total_score:.4f}%),
+    BREAK 50落(一共{brk}个)等价于 {(break_50_reduce / 100):.3f} 个 TAP GREAT(-{break_50_reduce / total_score * 100:.4f}%)''')
+        except Exception:
+            await query_chart.send("格式错误或未找到乐曲，输入“分数线 帮助”以查看帮助信息")
+
+
+best_40_pic = on_command('b40')
+
+
+@best_40_pic.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    username = str(event.get_message()).strip()
+    print(event.message_id)
+    if username == "":
+        payload = {'qq': str(event.get_user_id())}
+    else:
+        payload = {'username': username}
+    img, success = await generate(payload)
+    if success == 400:
+        await best_40_pic.send("未找到此玩家，请确保此玩家的用户名和查分器中的用户名相同。")
+    elif success == 403:
+        await best_40_pic.send("该用户禁止了其他人获取数据。")
+    else:
+        await best_40_pic.send(Message([
+            MessageSegment.reply(event.message_id),
+            MessageSegment.image(f"base64://{str(image_to_base64(img), encoding='utf-8')}")
+        ]))
+
+
+
+disable_guess_music = on_command('猜歌设置', priority=0)
+
+
+@disable_guess_music.handle()
+async def _(bot: Bot, event: Event):
+    if event.message_type != "group":
+        return
+    arg = str(event.get_message())
+    group_members = await bot.get_group_member_list(group_id=event.group_id)
+    for m in group_members:
+        if m['user_id'] == event.user_id:
+            break
+    su = get_driver().config.superusers
+    if m['role'] != 'owner' and m['role'] != 'admin' and str(m['user_id']) not in su:
+        await disable_guess_music.finish("只有管理员可以设置猜歌")
+        return
+    db = get_driver().config.db
+    c = await db.cursor()
+    # await c.execute(f'create table guess_table (group_id bigint, enabled bit);')
+    if arg == '启用':
+        await c.execute(f'update guess_table set enabled=1 where group_id={event.group_id}')
+    elif arg == '禁用':
+        await c.execute(f'update guess_table set enabled=0 where group_id={event.group_id}')
+    else:
+        await disable_guess_music.finish("请输入 猜歌设置 启用/禁用")
+    await db.commit()
+    await disable_guess_music.finish("设置成功")
+
+
+guess_dict: Dict[Tuple[str, str], GuessObject] = {}
+guess_cd_dict: Dict[Tuple[str, str], float] = {}
+guess_music = on_command('猜歌', priority=0)
+
+
+async def guess_music_loop(bot: Bot, event: Event, state: T_State):
+    await asyncio.sleep(10)
+    guess: GuessObject = state["guess_object"]
+    if guess.is_end:
+        return
+    cycle = state["cycle"]
+    if cycle < 6:
+        asyncio.create_task(bot.send(event, f"{cycle + 1}/7 这首歌" + guess.guess_options[cycle]))
+    else:
+        asyncio.create_task(bot.send(event, Message([
+            MessageSegment.text("7/7 这首歌封面的一部分是："),
+            MessageSegment.image("base64://" + str(guess.b64image, encoding="utf-8")),
+            MessageSegment.text("答案将在 30 秒后揭晓")
+        ])))
+        asyncio.create_task(give_answer(bot, event, state))
+        return
+    state["cycle"] += 1
+    asyncio.create_task(guess_music_loop(bot, event, state))
+
+
+async def give_answer(bot: Bot, event: Event, state: T_State):
+    await asyncio.sleep(30)
+    guess: GuessObject = state["guess_object"]
+    if guess.is_end:
+        return
+    asyncio.create_task(bot.send(event, Message([MessageSegment.text("答案是：" + f"{guess.music['id']}. {guess.music['title']}\n"), MessageSegment.image(f"https://www.diving-fish.com/covers/{guess.music['id']}.jpg")])))
+    del guess_dict[state["k"]]
+
+
+@guess_music.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    mt = event.message_type
+    k = (mt, event.user_id if mt == "private" else event.group_id)
+    if mt == "group":
+        gid = event.group_id
+        db = get_driver().config.db
+        c = await db.cursor()
+        await c.execute(f"select * from guess_table where group_id={gid}")
+        data = await c.fetchone()
+        if data is None:
+            await c.execute(f'insert into guess_table values ({gid}, 1)')
+        elif data[1] == 0:
+            await guess_music.send("本群已禁用猜歌")
+            return
+        if k in guess_dict:
+            if k in guess_cd_dict and time.time() > guess_cd_dict[k] - 400:
+                # 如果已经过了 200 秒则自动结束上一次
+                del guess_dict[k]
+            else:
+                await guess_music.send("当前已有正在进行的猜歌")
+                return
+    # whitelists = get_driver().config.whitelists
+    # if not (mt == "group" and gid in whitelists):
+    #     if len(guess_dict) >= 5:
+    #         await guess_music.finish("千雪有点忙不过来了。现在正在猜的群有点多，晚点再试试如何？")
+    #         return
+    #     if k in guess_cd_dict and time.time() < guess_cd_dict[k]:
+    #         await guess_music.finish(f"已经猜过啦，下次猜歌会在 {time.strftime('%H:%M', time.localtime(guess_cd_dict[k]))} 可用噢")
+    #         return
+    guess = GuessObject()
+    guess_dict[k] = guess
+    state["k"] = k
+    state["guess_object"] = guess
+    state["cycle"] = 0
+    guess_cd_dict[k] = time.time() + 600
+    await guess_music.send("我将从热门乐曲中选择一首歌，并描述它的一些特征，请输入歌曲的【id】、【歌曲标题】或【歌曲标题中 5 个以上连续的字符】进行猜歌（DX乐谱和标准乐谱视为两首歌）。猜歌时查歌等其他命令依然可用。\n警告：这个命令可能会很刷屏，管理员可以使用【猜歌设置】指令进行设置。")
+    asyncio.create_task(guess_music_loop(bot, event, state))
+
+
+guess_music_solve = on_message(priority=20)
+
+
+@guess_music_solve.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    mt = event.message_type
+    k = (mt, event.user_id if mt == "private" else event.group_id)
+    if k not in guess_dict:
+        return
+    ans = str(event.get_message())
+    guess = guess_dict[k]
+    # await guess_music_solve.send(ans + "|" + guess.music['id'])
+    if ans == guess.music['id'] or (ans.lower() == guess.music['title'].lower()) or (len(ans) >= 5 and ans.lower() in guess.music['title'].lower()):
+        guess.is_end = True
+        del guess_dict[k]
+        await guess_music_solve.finish(Message([
+            MessageSegment.reply(event.message_id),
+            MessageSegment.text("猜对了，答案是：" + f"{guess.music['id']}. {guess.music['title']}\n"),
+            MessageSegment.image(f"https://www.diving-fish.com/covers/{guess.music['id']}.jpg")
+        ]))
