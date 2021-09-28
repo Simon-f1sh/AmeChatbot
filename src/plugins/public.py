@@ -126,23 +126,31 @@ async def _(bot: Bot, event: Event, state: T_State):
             }
         }]))
     elif r == 5:
-        await poke.send(Message('呜呜呜再戳人家要哭哭了啦'))
-    elif r <= 7:
+        await poke.send(Message('15级？'))
+    elif 5 < r <= 7:
         await poke.send(Message([{
             "type": "image",
             "data": {
                 "file": f"https://www.diving-fish.com/images/poke/{r - 5}.gif",
             }
         }]))
-    elif r <= 12:
+    elif 7 < r <= 12:
+        img_p = Image.open('src/static/mai/poke/meimei0' + str(r - 7) + '.jpg')
         await poke.send(Message([{
             "type": "image",
             "data": {
-                "file": f"https://www.diving-fish.com/images/poke/{r - 7}.jpg",
+                "file": f"base64://{str(image_to_base64(img_p), encoding='utf-8')}",
             }
         }]))
-    elif r == 1:
-        await poke.send(Message('戳你妈'))
+    # elif r <= 12:
+    #     await poke.send(Message([{
+    #         "type": "image",
+    #         "data": {
+    #             "file": f"https://www.diving-fish.com/images/poke/{r - 7}.jpg",
+    #         }
+    #     }]))
+    # elif r == 1:
+    #     await poke.send(Message('戳你妈'))
     else:
         await poke.send(Message([{
             "type": "poke",
@@ -233,8 +241,8 @@ async def _(bot: Bot, event: Event, state: T_State):
     pass
 
 
-'''
-random_person = on_regex("随个([男女]?)人")
+
+random_person = on_regex("随个([男女]?)人", priority=1)
 
 
 @random_person.handle()
@@ -268,7 +276,7 @@ async def _(bot: Bot, event: Event, state: T_State):
         await random_person.finish("请在群聊使用")
 
 
-snmb = on_regex("随个.+", priority=50)
+snmb = on_regex("随个.+", priority=5)
 
 
 @snmb.handle()
@@ -296,7 +304,7 @@ async def _(bot: Bot, event: Event, state: T_State):
             }]))
     except AttributeError:
         await random_person.finish("请在群聊使用")
-'''
+
 
 shuffle = on_command('shuffle')
 

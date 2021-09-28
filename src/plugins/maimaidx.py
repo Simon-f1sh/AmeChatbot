@@ -100,7 +100,7 @@ async def _(bot: Bot, event: Event, state: T_State):
     await inner_level.finish(s.strip())
 
 
-spec_rand = on_regex(r"^随个(?:dx|sd|标准)?[绿黄红紫白]?[0-9]+\+?")
+spec_rand = on_regex(r"^随个(?:dx|sd|标准)?[绿黄红紫白]?[0-9]+\+?", priority=0)
 
 
 @spec_rand.handle()
