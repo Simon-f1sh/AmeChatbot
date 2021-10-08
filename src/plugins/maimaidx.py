@@ -10,6 +10,8 @@ from nonebot.adapters import Event, Bot
 from nonebot.adapters.cqhttp import Message, MessageSegment, GroupMessageEvent, PrivateMessageEvent
 from src.libraries.maimaidx_guess import GuessObject
 
+from PIL import Image
+from src.libraries.image import image_to_base64
 from src.libraries.tool import hash
 from src.libraries.maimaidx_music import *
 from src.libraries.image import *
@@ -19,6 +21,7 @@ import json
 import random
 import time
 import re
+import os
 from urllib import parse
 
 
@@ -39,7 +42,8 @@ XXXmaimaiXXX什么 随机一首歌
 <歌曲别名>是什么歌 查询乐曲别名对应的乐曲
 定数查歌 <定数>  查询定数对应的乐曲
 定数查歌 <定数下限> <定数上限>
-分数线 <难度+歌曲id> <分数线> 详情请输入“分数线 帮助”查看""")
+分数线 <难度+歌曲id> <分数线> 详情请输入“分数线 帮助”查看
+妹妹猜歌 猜歌游戏""")
 
 
 def song_txt(music: Music):
@@ -259,10 +263,12 @@ async def _(bot: Bot, event: Event, state: T_State):
             s += f'宜 {wm_list[i]}\n'
         elif wm_value[i] == 0:
             s += f'忌 {wm_list[i]}\n'
-    s += "tpz妹妹提醒您：打机时不要大力拍打或滑动哦\n今日推荐歌曲："
+    s += "tpz妹妹提醒您："  # 打机时不要大力拍打或滑动哦
     music = total_list[h2 % len(total_list)]
     await jrwm.finish(Message([
-        {"type": "text", "data": {"text": s}}
+        {"type": "text", "data": {"text": s}},
+        {"type": "image", "data": {"file": "file:///" + os.path.abspath("src/static/mai/pic/meimeinotice.jpg")}},
+        {"type": "text", "data": {"text": "\n今日推荐歌曲："}}
     ] + song_txt(music)))
 
 
@@ -346,11 +352,32 @@ async def _(bot: Bot, event: Event, state: T_State):
             await query_chart.send(f'''{music['title']} {level_labels2[level_index]}
     分数线 {line}% 允许的最多 TAP GREAT 数量为 {(total_score * reduce / 10000):.2f}(每个-{10000 / total_score:.4f}%),
     BREAK 50落(一共{brk}个)等价于 {(break_50_reduce / 100):.3f} 个 TAP GREAT(-{break_50_reduce / total_score * 100:.4f}%)''')
+            if random.random() < 0.3:
+                await query_chart.send(Message([{"type": "image", "data": {"file": "file:///" + os.path.abspath("src/static/mai/pic/meimeiyiban.jpg")}}]))
         except Exception:
             await query_chart.send("格式错误或未找到乐曲，输入“分数线 帮助”以查看帮助信息")
 
 
-best_40_pic = on_command('b40')
+best_40_pic_old = on_command('b40')
+
+@best_40_pic_old.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    await best_40_pic_old.send(Message([
+        {
+            "type": "text",
+            "data": {
+                "text": f"是\"妹妹b40\"谢谢"
+            }
+        },
+        {
+            "type": "image",
+            "data": {
+                "file": "file:///" + os.path.abspath("src/static/mai/pic/meimeib40.jpg")
+            }
+        }
+    ]))
+
+best_40_pic = on_command('妹妹b40')
 
 
 @best_40_pic.handle()
@@ -405,7 +432,7 @@ async def _(bot: Bot, event: Event):
 
 guess_dict: Dict[Tuple[str, str], GuessObject] = {}
 guess_cd_dict: Dict[Tuple[str, str], float] = {}
-guess_music = on_command('猜歌', priority=0)
+guess_music = on_command('妹妹猜歌', priority=0)
 
 
 async def guess_music_loop(bot: Bot, event: Event, state: T_State):
@@ -414,8 +441,14 @@ async def guess_music_loop(bot: Bot, event: Event, state: T_State):
     if guess.is_end:
         return
     cycle = state["cycle"]
-    if cycle < 6:
-        asyncio.create_task(bot.send(event, f"{cycle + 1}/7 这首歌" + guess.guess_options[cycle]))
+    if cycle == 0:
+        if random.random() < 0.3:
+            asyncio.create_task(bot.send(event, f"{cycle}/7 这歌真不难"))
+        else:
+            state["cycle"] += 1
+            asyncio.create_task(bot.send(event, f"{cycle + 1}/7 这首歌" + guess.guess_options[cycle]))
+    elif cycle < 7:
+        asyncio.create_task(bot.send(event, f"{cycle}/7 这首歌" + guess.guess_options[cycle-1]))
     else:
         asyncio.create_task(bot.send(event, Message([
             MessageSegment.text("7/7 这首歌封面的一部分是："),

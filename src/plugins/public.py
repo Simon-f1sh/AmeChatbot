@@ -1,5 +1,7 @@
 import random
 import re
+import os
+import shelve
 
 from PIL import Image
 from nonebot import on_command, on_message, on_notice, require, get_driver, on_regex
@@ -26,7 +28,7 @@ async def _(bot: Bot, event: Event, state: T_State):
     v = str(event.get_message()).strip()
     help_text: dict = get_driver().config.help_text
     if v == "":
-        help_str = '\n'.join([f'.help {key}\t{help_text[key][0]}' for key in help_text])
+        help_str = '\n'.join([f'help {key}\t{help_text[key][0]}' for key in help_text])
         await help.finish(help_str)
     else:
         await help.finish(Message([{
@@ -53,7 +55,6 @@ async def _group_poke(bot: Bot, event: Event, state: dict) -> bool:
 
 
 poke = on_notice(rule=_group_poke, priority=10, block=True)
-poke_dict = defaultdict(lambda: defaultdict(int))
 
 
 async def invoke_poke(group_id, user_id) -> str:
@@ -88,11 +89,18 @@ async def invoke_poke(group_id, user_id) -> str:
 @poke.handle()
 async def _(bot: Bot, event: Event, state: T_State):
     v = "default"
-    if event.__getattribute__('group_id') is None:
+    group_id = event.__getattribute__('group_id')
+    sender_id = event.sender_id
+    if group_id is None:
         event.__delattr__('group_id')
     else:
-        group_dict = poke_dict[event.__getattribute__('group_id')]
-        group_dict[event.sender_id] += 1
+        poke_dict = shelve.open('src/static/poke.db', writeback=True)
+        if str(group_id) not in poke_dict:
+            poke_dict[str(group_id)] = {}
+        if str(sender_id) not in poke_dict[str(group_id)]:
+            poke_dict[str(group_id)][str(sender_id)] = 0
+        poke_dict[str(group_id)][str(sender_id)] += 1
+        poke_dict.close()
         v = await invoke_poke(event.group_id, event.sender_id)
         if v == "disabled":
             await poke.finish()
@@ -131,15 +139,14 @@ async def _(bot: Bot, event: Event, state: T_State):
         await poke.send(Message([{
             "type": "image",
             "data": {
-                "file": f"https://www.diving-fish.com/images/poke/{r - 5}.gif",
+                "file": "file:///" + os.path.abspath("src/static/mai/poke/meimei0" + str(r - 5) + ".gif")
             }
         }]))
-    elif 7 < r <= 12:
-        img_p = Image.open('src/static/mai/poke/meimei0' + str(r - 7) + '.jpg')
+    elif 7 < r <= 13:
         await poke.send(Message([{
             "type": "image",
             "data": {
-                "file": f"base64://{str(image_to_base64(img_p), encoding='utf-8')}",
+                "file": "file:///" + os.path.abspath("src/static/mai/poke/meimei0" + str(r - 7) + ".jpg")
             }
         }]))
     # elif r <= 12:
@@ -161,10 +168,13 @@ async def _(bot: Bot, event: Event, state: T_State):
 
 
 async def send_poke_stat(group_id: int, bot: Bot):
-    if group_id not in poke_dict:
+    poke_dict = shelve.open('src/static/poke.db')
+    if str(group_id) not in poke_dict:
+        poke_dict.close()
         return
     else:
-        group_stat = poke_dict[group_id]
+        group_stat = poke_dict[str(group_id)]
+        poke_dict.close()
         sorted_dict = {k: v for k, v in sorted(group_stat.items(), key=lambda item: item[1], reverse=True)}
         index = 0
         data = []
@@ -173,7 +183,7 @@ async def send_poke_stat(group_id: int, bot: Bot):
             index += 1
             if index == 3:
                 break
-        await bot.send_msg(group_id=group_id, message="接下来公布一下我上次重启以来，本群最闲着没事干玩戳一戳的人")
+        await bot.send_msg(group_id=group_id, message="接下来公布一下我上次失忆以来，本群最闲着没事干玩戳一戳的人")
         await asyncio.sleep(1)
         if len(data) == 3:
             await bot.send_msg(group_id=group_id, message=Message([
@@ -283,7 +293,7 @@ snmb = on_regex("随个.+", priority=5)
 async def _(bot: Bot, event: Event, state: T_State):
     try:
         gid = event.group_id
-        if random.random() < 0.5:
+        if random.random() < 0.3:
             await snmb.finish(Message([
                 {"type": "text", "data": {"text": "随你"}},
                 {"type": "image", "data": {"file": "https://www.diving-fish.com/images/emoji/horse.png"}}

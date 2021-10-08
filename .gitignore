@@ -128,3 +128,7 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+# Database
+src/static/chiyuki.db
+src/static/poke.db.*
