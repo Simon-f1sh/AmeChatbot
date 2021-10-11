@@ -132,3 +132,6 @@ dmypy.json
 # Database
 src/static/chiyuki.db
 src/static/poke.db.*
+/src/static/guess.db.bak
+/src/static/guess.db.dat
+/src/static/guess.db.dir

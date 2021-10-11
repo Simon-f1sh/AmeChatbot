@@ -329,16 +329,33 @@ async def _(bot: Bot, event: Event):
     random.shuffle(d)
     await shuffle.finish(','.join(d))
 
-'''
-repeat = on_message(priority=99)
+
+repeat = on_message(priority=20)
+repeat_dict = defaultdict(list)
 
 
 @repeat.handle()
 async def _(bot: Bot, event: Event, state: T_State):
-    r = random.random()
-    if r <= 0.0114514:
-        await repeat.finish(event.get_message())
-'''
+    if event.__getattribute__('group_id') is None:
+        event.__delattr__('group_id')
+    else:
+        repeat_list = repeat_dict[event.__getattribute__('group_id')]
+        if len(repeat_list) == 0:
+            repeat_list.append('')
+            repeat_list.append(False)
+        msg = event.get_message()
+        p = 0.0114514
+        if repeat_list[0] == msg and not repeat_list[1]:
+            p = 1
+        elif repeat_list[0] != msg and repeat_list[1]:
+            repeat_list[0] = msg
+            repeat_list[1] = False
+        elif repeat_list[0] != msg:
+            repeat_list[0] = msg
+        r = random.random()
+        if r <= p:  # 0.0114514 default
+            repeat_list[1] = True
+            await repeat.finish(msg)
 
 # taro_lst = []
 #

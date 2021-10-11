@@ -22,6 +22,8 @@ import random
 import time
 import re
 import os
+import shelve
+import asyncio
 from urllib import parse
 
 
@@ -34,15 +36,15 @@ def _():
     help_text: dict = get_driver().config.help_text
     help_text['mai'] = ('查看舞萌相关功能', """19岁，是妹妹。
 可用命令如下：
-今日舞萌 查看今天的舞萌运势
+今日运势 查看今天的舞萌运势
 XXXmaimaiXXX什么 随机一首歌
 随个[dx/标准][绿黄红紫白]<难度> 随机一首指定条件的乐曲
-查歌<乐曲标题的一部分> 查询符合条件的乐曲
-[绿黄红紫白]id<歌曲编号> 查询乐曲信息或谱面信息
-<歌曲别名>是什么歌 查询乐曲别名对应的乐曲
-定数查歌 <定数>  查询定数对应的乐曲
-定数查歌 <定数下限> <定数上限>
-分数线 <难度+歌曲id> <分数线> 详情请输入“分数线 帮助”查看
+search<乐曲标题的一部分> 查询符合条件的乐曲
+[绿黄红紫白]id <歌曲编号> 查询乐曲信息或谱面信息
+<歌曲别名>是啥歌 查询乐曲别名对应的乐曲
+base <定数>  查询定数对应的乐曲
+base <定数下限> <定数上限>
+line <难度+歌曲id> <分数线> 详情请输入“line 帮助”查看
 妹妹猜歌 猜歌游戏""")
 
 
@@ -82,14 +84,14 @@ def inner_level_q(ds1, ds2=None):
     return result_set
 
 
-inner_level = on_command('inner_level ', aliases={'定数查歌 '})
+inner_level = on_command('inner_level ', aliases={'base '})
 
 
 @inner_level.handle()
 async def _(bot: Bot, event: Event, state: T_State):
     argv = str(event.get_message()).strip().split(" ")
     if len(argv) > 2 or len(argv) == 0:
-        await inner_level.finish("命令格式为\n定数查歌 <定数>\n定数查歌 <定数下限> <定数上限>")
+        await inner_level.finish("命令格式为\nbase <定数>\nbase <定数下限> <定数上限>")
         return
     if len(argv) == 1:
         result_set = inner_level_q(float(argv[0]))
@@ -138,12 +140,12 @@ async def _(bot: Bot, event: Event, state: T_State):
     await mr.finish(song_txt(total_list.random()))
 
 
-search_music = on_regex(r"^查歌.+")
+search_music = on_regex(r"^search.+")
 
 
 @search_music.handle()
 async def _(bot: Bot, event: Event, state: T_State):
-    regex = "查歌(.+)"
+    regex = "search(.+)"
     name = re.match(regex, str(event.get_message())).groups()[0].strip()
     if name == "":
         return
@@ -155,12 +157,12 @@ async def _(bot: Bot, event: Event, state: T_State):
             }} for music in res]))
 
 
-query_chart = on_regex(r"^([绿黄红紫白]?)id([0-9]+)")
+query_chart = on_regex(r"^([绿黄红紫白]?)id ([0-9]+)")
 
 
 @query_chart.handle()
 async def _(bot: Bot, event: Event, state: T_State):
-    regex = "([绿黄红紫白]?)id([0-9]+)"
+    regex = "([绿黄红紫白]?)id ([0-9]+)"
     groups = re.match(regex, str(event.get_message())).groups()
     level_labels = ['绿', '黄', '红', '紫', '白']
     if groups[0] != "":
@@ -244,7 +246,7 @@ BREAK: {chart['notes'][4]}
 wm_list = ['拼机', '推分', '越级', '下埋', '夜勤', '练底力', '练手法', '打旧框', '干饭', '抓绝赞', '收歌']
 
 
-jrwm = on_command('今日舞萌', aliases={'今日mai'})
+jrwm = on_command('今日运势', aliases={'今日运势'})
 
 
 @jrwm.handle()
@@ -283,15 +285,15 @@ for t in tmp:
             music_aliases[arr[i].lower()].append(arr[0])
 
 
-find_song = on_regex(r".+是什么歌")
+find_song = on_regex(r".+是啥歌")
 
 
 @find_song.handle()
 async def _(bot: Bot, event: Event, state: T_State):
-    regex = "(.+)是什么歌"
+    regex = "(.+)是啥歌"
     name = re.match(regex, str(event.get_message())).groups()[0].strip().lower()
     if name not in music_aliases:
-        await find_song.finish("未找到此歌曲\n舞萌 DX 歌曲别名收集计划：https://docs.qq.com/sheet/DQ0pvUHh6b1hjcGpl")
+        await find_song.finish("未找到此歌曲\n舞萌 DX 歌曲别名收集计划：https://docs.qq.com/sheet/DRk5sckZKd0RZREZi")
         return
     result_set = music_aliases[name]
     if len(result_set) == 1:
@@ -302,10 +304,10 @@ async def _(bot: Bot, event: Event, state: T_State):
         await find_song.finish(f"您要找的可能是以下歌曲中的其中一首：\n{ s }")
 
 
-query_score = on_command('分数线')
+query_score = on_command('line')
 query_score_text = '''此功能为查找某首歌分数线设计。
-命令格式：分数线 <难度+歌曲id> <分数线>
-例如：分数线 白337 100
+命令格式：line <难度+歌曲id> <分数线>
+例如：line 白337 100
 命令将返回分数线允许的 TAP GREAT 容错以及 BREAK 50落等价的 TAP GREAT 数。
 以下为 TAP GREAT 的对应表：
 GREAT/GOOD/MISS
@@ -355,7 +357,7 @@ async def _(bot: Bot, event: Event, state: T_State):
             if random.random() < 0.3:
                 await query_chart.send(Message([{"type": "image", "data": {"file": "file:///" + os.path.abspath("src/static/mai/pic/meimeiyiban.jpg")}}]))
         except Exception:
-            await query_chart.send("格式错误或未找到乐曲，输入“分数线 帮助”以查看帮助信息")
+            await query_chart.send("格式错误或未找到乐曲，输入“line 帮助”以查看帮助信息")
 
 
 best_40_pic_old = on_command('b40')
@@ -525,8 +527,68 @@ async def _(bot: Bot, event: Event, state: T_State):
     if ans == guess.music['id'] or (ans.lower() == guess.music['title'].lower()) or (len(ans) >= 5 and ans.lower() in guess.music['title'].lower()):
         guess.is_end = True
         del guess_dict[k]
+        group_id = event.__getattribute__('group_id')
+        sender_id = event.get_user_id()
+        if group_id is None:
+            event.__delattr__('group_id')
+        else:
+            guess_count_dict = shelve.open('src/static/guess.db', writeback=True)
+            if str(group_id) not in guess_count_dict:
+                guess_count_dict[str(group_id)] = {}
+            if str(sender_id) not in guess_count_dict[str(group_id)]:
+                guess_count_dict[str(group_id)][str(sender_id)] = 0
+            guess_count_dict[str(group_id)][str(sender_id)] += 1
+            guess_count_dict.close()
         await guess_music_solve.finish(Message([
             MessageSegment.reply(event.message_id),
             MessageSegment.text("猜对了，答案是：" + f"{guess.music['id']}. {guess.music['title']}\n"),
             MessageSegment.image(f"https://www.diving-fish.com/covers/{guess.music['id']}.jpg")
         ]))
+
+
+async def send_guess_stat(group_id: int, bot: Bot):
+    guess_count_dict = shelve.open('src/static/guess.db')
+    if str(group_id) not in guess_count_dict:
+        guess_count_dict.close()
+        return
+    else:
+        group_stat = guess_count_dict[str(group_id)]
+        guess_count_dict.close()
+        sorted_dict = {k: v for k, v in sorted(group_stat.items(), key=lambda item: item[1], reverse=True)}
+        index = 0
+        data = []
+        for k in sorted_dict:
+            data.append((k, sorted_dict[k]))
+            index += 1
+            if index == 3:
+                break
+        await bot.send_msg(group_id=group_id, message="接下来公布一下我上次失忆以来，本群最闲着没事干玩猜歌的人")
+        await asyncio.sleep(1)
+        if len(data) == 3:
+            await bot.send_msg(group_id=group_id, message=Message([
+                {"type": "text", "data": {"text": "第三名，"}},
+                {"type": "at", "data": {"qq": f"{data[2][0]}"}},
+                {"type": "text", "data": {"text": f"，一共猜对了{data[2][1]}次，只能说一般"}},
+            ]))
+            await asyncio.sleep(1)
+        if len(data) >= 2:
+            await bot.send_msg(group_id=group_id, message=Message([
+                {"type": "text", "data": {"text": "第二名，"}},
+                {"type": "at", "data": {"qq": f"{data[1][0]}"}},
+                {"type": "text", "data": {"text": f"，一共猜对了{data[1][1]}次，猜对这么多日文歌，你是不是日本人"}},
+            ]))
+            await asyncio.sleep(1)
+        await bot.send_msg(group_id=group_id, message=Message([
+            {"type": "text", "data": {"text": "第一名，"}},
+            {"type": "at", "data": {"qq": f"{data[0][0]}"}},
+            {"type": "text", "data": {"text": f"，一共猜对了{data[0][1]}次，基本上全靠别人查出来抢答，有这手速怎么不AP白潘"}},
+        ]))
+
+
+guess_stat = on_command("本群猜歌情况")
+
+
+@guess_stat.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    group_id = event.group_id
+    await send_guess_stat(group_id, bot)

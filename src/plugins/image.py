@@ -37,7 +37,7 @@ jlpx = on_command('金龙盘旋')
 async def _(bot: Bot, event: Event, state: T_State):
     argv = str(event.get_message()).strip().split(' ')
     if len(argv) != 3:
-        await jlpx.send("金龙盘旋需要三个参数")
+        await jlpx.send("该指令需要三个参数")
     url = await get_jlpx(argv[0], argv[1], argv[2])
     await jlpx.send(Message([{
         "type": "image",
@@ -54,7 +54,7 @@ gocho = on_command('gocho')
 async def _(bot: Bot, event: Event, state: T_State):
     argv = str(event.get_message()).strip().split(' ')
     if len(argv) != 2:
-        await jlpx.send("gocho 需要两个参数")
+        await jlpx.send("该指令需要两个参数")
     i = generate(argv[0], argv[1])
     await gocho.send(Message([{
         "type": "image",
