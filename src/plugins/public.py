@@ -1,12 +1,17 @@
 import random
 import re
 import os
+import sys
 import shelve
+import psutil
+import platform
 
 from PIL import Image
 from nonebot import on_command, on_message, on_notice, require, get_driver, on_regex
 from nonebot.typing import T_State
 from nonebot.adapters.cqhttp import Message, Event, Bot
+from nonebot.permission import SUPERUSER
+from nonebot.adapters.cqhttp.permission import GROUP_ADMIN, GROUP_OWNER
 from random import randint
 import asyncio
 
@@ -16,9 +21,7 @@ from src.libraries.tool import hash
 import time
 from collections import defaultdict
 
-
 scheduler = require("nonebot_plugin_apscheduler").scheduler
-
 
 help = on_command('help')
 
@@ -37,6 +40,7 @@ async def _(bot: Bot, event: Event, state: T_State):
                 "file": f"base64://{str(image_to_base64(text_to_image(help_text[v][1])), encoding='utf-8')}"
             }
         }]))
+
 
 jrrp = on_command('jrrp')
 
@@ -75,13 +79,15 @@ async def invoke_poke(group_id, user_id) -> str:
             if ts - duration < data[1]:
                 ret = "limited"
                 t2 = data[1]
-        await c.execute(f'update group_poke_table set last_trigger_time={t2}, triggered={data[2] + 1} where group_id={group_id}')
+        await c.execute(
+            f'update group_poke_table set last_trigger_time={t2}, triggered={data[2] + 1} where group_id={group_id}')
     await c.execute(f"select * from user_poke_table where group_id={group_id} and user_id={user_id}")
     data2 = await c.fetchone()
     if data2 is None:
         await c.execute(f'insert into user_poke_table values ({user_id}, {group_id}, 1)')
     else:
-        await c.execute(f'update user_poke_table set triggered={data2[2] + 1} where user_id={user_id} and group_id={group_id}')
+        await c.execute(
+            f'update user_poke_table set triggered={data2[2] + 1} where user_id={user_id} and group_id={group_id}')
     await db.commit()
     return ret
 
@@ -113,9 +119,9 @@ async def _(bot: Bot, event: Event, state: T_State):
                 "qq": f"{event.sender_id}"
             }
         }]))
-    elif r == 2:
+    elif r == 1:
         await poke.send(Message('妈你戳'))
-    elif r == 3:
+    elif r == 2:
         url = await get_jlpx('戳', '你妈', '闲着没事干')
         await poke.send(Message([{
             "type": "image",
@@ -123,7 +129,7 @@ async def _(bot: Bot, event: Event, state: T_State):
                 "file": url
             }
         }]))
-    elif r == 4:
+    elif r == 3:
         img_p = Image.open(path)
         draw_text(img_p, '戳你妈', 0)
         draw_text(img_p, '有尝试过玩Cytus II吗', 400)
@@ -133,20 +139,20 @@ async def _(bot: Bot, event: Event, state: T_State):
                 "file": f"base64://{str(image_to_base64(img_p), encoding='utf-8')}"
             }
         }]))
-    elif r == 5:
+    elif r == 4:
         await poke.send(Message('15级？'))
-    elif 5 < r <= 7:
+    elif 4 < r <= 8:
         await poke.send(Message([{
             "type": "image",
             "data": {
-                "file": "file:///" + os.path.abspath("src/static/mai/poke/meimei0" + str(r - 5) + ".gif")
+                "file": "file:///" + os.path.abspath("src/static/mai/poke/meimei" + str(r - 4) + ".gif")
             }
         }]))
-    elif 7 < r <= 13:
+    elif 8 < r <= 20:
         await poke.send(Message([{
             "type": "image",
             "data": {
-                "file": "file:///" + os.path.abspath("src/static/mai/poke/meimei0" + str(r - 7) + ".jpg")
+                "file": "file:///" + os.path.abspath("src/static/mai/poke/meimei" + str(r - 8) + ".jpg")
             }
         }]))
     # elif r <= 12:
@@ -233,7 +239,8 @@ async def _(bot: Bot, event: Event, state: T_State):
     try:
         if argv[0] == "默认":
             c = await db.cursor()
-            await c.execute(f'update group_poke_table set disabled=0, strategy="default" where group_id={event.group_id}')
+            await c.execute(
+                f'update group_poke_table set disabled=0, strategy="default" where group_id={event.group_id}')
         elif argv[0] == "限制":
             c = await db.cursor()
             await c.execute(
@@ -247,9 +254,9 @@ async def _(bot: Bot, event: Event, state: T_State):
         await poke_setting.send("设置成功")
         await db.commit()
     except (IndexError, ValueError):
-        await poke_setting.finish("命令格式：\n戳一戳设置 默认   将启用默认的戳一戳设定\n戳一戳设置 限制 <秒>   在戳完一次bot的指定时间内，调用戳一戳只会让bot反过来戳你\n戳一戳设置 禁用   将禁用戳一戳的相关功能")
+        await poke_setting.finish(
+            "命令格式：\n戳一戳设置 默认   将启用默认的戳一戳设定\n戳一戳设置 限制 <秒>   在戳完一次bot的指定时间内，调用戳一戳只会让bot反过来戳你\n戳一戳设置 禁用   将禁用戳一戳的相关功能")
     pass
-
 
 
 random_person = on_regex("随个([男女]?)人", priority=1)
@@ -357,6 +364,69 @@ async def _(bot: Bot, event: Event, state: T_State):
             repeat_list[1] = True
             await repeat.finish(msg)
 
+
+status = on_command("status", permission=SUPERUSER | GROUP_ADMIN | GROUP_OWNER, block=True)
+
+
+@status.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    try:
+        py_info = platform.python_version()
+        pla = platform.platform()
+        cpu = psutil.cpu_percent()
+        memory = psutil.virtual_memory().percent
+        memory = round(memory, 2)
+        disk = psutil.disk_usage('/').percent
+    except Exception:  # ignore
+        await status.finish("获取状态失败")
+        return
+
+    msg = ""
+
+    if cpu > 80 or memory > 80 or disk > 80:
+        ex_msg = "蚌埠住了..."
+    else:
+        ex_msg = "一般"
+
+    msg += "server status:\n"
+    msg += f"OS: {pla}"
+    msg += f"Running on Python {py_info}\n"
+    msg += f"CPU {cpu}%\n"
+    msg += f"MEM {memory}%\n"
+    msg += f"DISK {disk}%\n"
+    msg += ex_msg
+    await status.finish(msg)
+
+
+reset = on_command("reset", priority=0, permission=SUPERUSER | GROUP_ADMIN | GROUP_OWNER, block=True)
+
+
+@reset.handle()
+async def _(bot: Bot, event: Event, state: dict):
+    await reset.send(Message([{
+        "type": "image",
+        "data": {
+            "file": "file:///" + os.path.abspath("src/static/mai/pic/meimeireset.png")
+        }
+    }]))
+
+    os.execl(sys.executable, sys.executable, *sys.argv)
+
+
+STFU = on_command("STFU", priority=0, permission=SUPERUSER | GROUP_ADMIN | GROUP_OWNER, block=True)
+
+
+@STFU.handle()
+async def _(bot: Bot, event: Event, state: dict):
+    await reset.send(Message([{
+        "type": "image",
+        "data": {
+            "file": "file:///" + os.path.abspath("src/static/mai/pic/meimeistfu.jpg")
+        }
+    }]))
+
+    sys.exit(0)
+
 # taro_lst = []
 #
 # with open('src/static/taro.txt', encoding='utf-8') as f:
@@ -379,4 +449,3 @@ async def _(bot: Bot, event: Event, state: T_State):
 #     s1 = "正位" if a == 0 else "逆位"
 #     s2 = taro_lst[c][3 + a]
 #     await taro.finish(f"来看看{ nickname }抽到了什么：\n{taro_lst[c][0]}（{taro_lst[c][1]}，{taro_lst[c][2]}）{s1}：\n{s2}")
-
