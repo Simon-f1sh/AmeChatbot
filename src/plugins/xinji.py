@@ -2,7 +2,7 @@ import re
 import os
 import pytz
 
-from nonebot import require, on_command, on_regex, get_driver, logger
+from nonebot import require, on_command, on_regex, get_driver, logger, get_bots
 from nonebot.rule import to_me
 from nonebot.typing import T_State
 from nonebot.adapters.cqhttp import Message, Event, Bot, MessageSegment
@@ -12,6 +12,24 @@ from collections import defaultdict
 from datetime import datetime
 
 driver = get_driver()
+
+SH = pytz.timezone('Asia/Shanghai')
+scheduler = require("nonebot_plugin_apscheduler").scheduler
+
+counter = 0
+otw_counter = 0
+curr_time = ""
+otw_dict = defaultdict(int)
+
+
+async def clear_counter():
+    global counter, otw_counter, curr_time
+    counter = 0
+    otw_counter = 0
+    curr_time = ""
+    otw_dict.clear()
+    (bot,) = get_bots().values()
+    await bot.send_group_msg(group_id=879106299, message="机厅已关门，新几数据已清空")
 
 
 @driver.on_startup
@@ -28,15 +46,13 @@ def _():
 @tpz妹妹 不出了 状态为“路上”才可以使用，鸽了（
 @tpz妹妹 到达 状态为“路上”才可以使用，解除“路上”状态并自动更新新奥人数
 @tpz妹妹 路上有谁 字面意思""")
+    scheduler.add_job(
+        clear_counter,
+        trigger='cron',
+        hour=22,
+        minute=0,
+    )
 
-
-SH = pytz.timezone('Asia/Shanghai')
-scheduler = require("nonebot_plugin_apscheduler").scheduler
-
-counter = 0
-otw_counter = 0
-curr_time = ""
-otw_dict = defaultdict(int)
 
 xinji = on_regex(r"^(新几)$", block=True)
 
@@ -52,7 +68,12 @@ async def _(bot: Bot, event: Event, state: T_State):
         }]))
     else:
         if counter > 9:
-            await xinji.send("🆕1⃣️🥣" + "\n更新时间: " + curr_time)
+            await xinji.send(Message([{
+                "type": "image",
+                "data": {
+                    "file": "file:///" + os.path.abspath("src/static/mai/xinji/10+.jpg")
+                }
+            }, MessageSegment.text("\n路上人数: " + str(otw_counter) + "\n更新时间: " + curr_time)]))
         else:
             await xinji.send(Message([{
                 "type": "image",
@@ -76,7 +97,12 @@ async def _(bot: Bot, event: Event, state: T_State):
             counter += int(res.group(2))
             curr_time = datetime.now(SH).strftime('%Y/%m/%d %H:%M:%S')
             if counter > 9:
-                await xin_add_minus.send("收到，现在🆕1⃣️🥣")
+                await xin_add_minus.send(Message([MessageSegment.text("收到"), {
+                    "type": "image",
+                    "data": {
+                        "file": "file:///" + os.path.abspath("src/static/mai/xinji/10+.jpg")
+                    }
+                }]))
             else:
                 await xin_add_minus.send(Message([MessageSegment.text("收到"), {
                     "type": "image",
@@ -89,7 +115,12 @@ async def _(bot: Bot, event: Event, state: T_State):
                 counter -= int(res.group(2))
                 curr_time = datetime.now(SH).strftime('%Y/%m/%d %H:%M:%S')
                 if counter > 9:
-                    await xin_add_minus.send("收到，现在🆕1⃣️🥣")
+                    await xin_add_minus.send(Message([MessageSegment.text("收到"), {
+                        "type": "image",
+                        "data": {
+                            "file": "file:///" + os.path.abspath("src/static/mai/xinji/10+.jpg")
+                        }
+                    }]))
                 else:
                     await xin_add_minus.send(Message([MessageSegment.text("收到"), {
                         "type": "image",
@@ -142,6 +173,10 @@ async def _(bot: Bot, event: Event, state: T_State):
         print("Exception" + e)
         await otw.finish("命令错误，请检查语法")
 
+    if num > 10:
+        await otw.send("面包人？")
+        return
+
     if otw_dict[event.get_user_id()] == num and num != 0:
         await otw.send("以防您脑子不太好用我这边提醒您一下")
         await otw.send("您已经在路上了")
@@ -171,7 +206,12 @@ async def _(bot: Bot, event: Event, state: T_State):
     otw_dict.pop(event.get_user_id())
     curr_time = datetime.now(SH).strftime('%Y/%m/%d %H:%M:%S')
     if counter > 9:
-        await arrive.send("收到，现在🆕1⃣️🥣")
+        await arrive.send(Message([MessageSegment.text("收到"), {
+            "type": "image",
+            "data": {
+                "file": "file:///" + os.path.abspath("src/static/mai/xinji/10+.jpg")
+            }
+        }]))
     else:
         await arrive.send(Message([MessageSegment.text("收到"), {
             "type": "image",
