@@ -3,13 +3,14 @@ import os
 import pytz
 
 from nonebot import require, on_command, on_regex, get_driver, logger, get_bots
+from nonebot.permission import SUPERUSER
 from nonebot.rule import to_me
 from nonebot.typing import T_State
-from nonebot.adapters.cqhttp import Message, Event, Bot, MessageSegment
+from nonebot.adapters.cqhttp import Message, Event, Bot, MessageSegment, GROUP_ADMIN, GROUP_OWNER
 
 from collections import defaultdict
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 driver = get_driver()
 
@@ -20,20 +21,26 @@ counter = 0
 otw_counter = 0
 curr_time = ""
 otw_dict = defaultdict(int)
+open_time = datetime.now(SH).replace(hour=7, minute=0, second=0, microsecond=0)
 
 
 async def clear_counter():
-    global counter, otw_counter, curr_time
-    counter = 0
-    otw_counter = 0
-    curr_time = ""
-    otw_dict.clear()
+    global open_time
+    open_time += timedelta(days=1)
+    logger.info(open_time)
+    xinji_clear()
     (bot,) = get_bots().values()
     await bot.send_group_msg(group_id=879106299, message="机厅已关门，新几数据已清空")
+    await bot.send_group_msg(group_id=879106299, message="新几相关功能已关闭，将于次日7点重新开启")
 
 
 @driver.on_startup
 def _():
+    global open_time
+    if datetime.now(SH) >= datetime.now(SH).replace(hour=22, minute=0, second=0, microsecond=0):
+        open_time += timedelta(days=1)
+    logger.info("Open Time:")
+    logger.info(open_time)
     logger.info("Load help text successfully")
     help_text: dict = get_driver().config.help_text
     help_text['xinji'] = ('查看新几相关功能', """19岁，是妹妹。
@@ -90,12 +97,15 @@ xin_add_minus = on_regex(r"^新(\+|-)([0-9]+)$", rule=to_me(), block=True)
 async def _(bot: Bot, event: Event, state: T_State):
     global counter
     global curr_time
+    now = datetime.now(SH)
+    if now < open_time:
+        return
     regex = r"新(\+|-)([0-9]+)"
     res = re.match(regex, str(event.get_message()).lower())
     try:
         if res.group(1) == "+":
             counter += int(res.group(2))
-            curr_time = datetime.now(SH).strftime('%Y/%m/%d %H:%M:%S')
+            curr_time = now.strftime('%Y/%m/%d %H:%M:%S')
             if counter > 9:
                 await xin_add_minus.send(Message([MessageSegment.text("收到"), {
                     "type": "image",
@@ -113,7 +123,7 @@ async def _(bot: Bot, event: Event, state: T_State):
         elif res.group(1) == "-":
             if int(res.group(2)) <= counter:
                 counter -= int(res.group(2))
-                curr_time = datetime.now(SH).strftime('%Y/%m/%d %H:%M:%S')
+                curr_time = now.strftime('%Y/%m/%d %H:%M:%S')
                 if counter > 9:
                     await xin_add_minus.send(Message([MessageSegment.text("收到"), {
                         "type": "image",
@@ -142,12 +152,15 @@ xin_number = on_regex(r"^新([0-9]+)$", rule=to_me(), block=True)
 async def _(bot: Bot, event: Event, state: T_State):
     global counter
     global curr_time
+    now = datetime.now(SH)
+    if now < open_time:
+        return
     regex = r"新([0-9]+)"
     res = re.match(regex, str(event.get_message()).lower())
     try:
         if int(res.group(1)) >= 0:
             counter = int(res.group(1))
-            curr_time = datetime.now(SH).strftime('%Y/%m/%d %H:%M:%S')
+            curr_time = now.strftime('%Y/%m/%d %H:%M:%S')
             await xin_number.send("收到")
         else:
             await xin_number.send("人数不能为负")
@@ -163,6 +176,9 @@ otw = on_regex(r"^路上([0-9]*)$", rule=to_me(), block=True)
 async def _(bot: Bot, event: Event, state: T_State):
     global otw_counter
     global curr_time
+    now = datetime.now(SH)
+    if now < open_time:
+        return
     regex = r"路上([0-9]*)"
     res = re.match(regex, str(event.get_message()).lower())
     num = 1
@@ -186,7 +202,7 @@ async def _(bot: Bot, event: Event, state: T_State):
             otw_dict.pop(event.get_user_id())
         else:
             otw_dict[event.get_user_id()] = num
-        curr_time = datetime.now(SH).strftime('%Y/%m/%d %H:%M:%S')
+        curr_time = now.strftime('%Y/%m/%d %H:%M:%S')
         await otw.send("收到，现在路上" + str(otw_counter) + "人")
 
 
@@ -198,13 +214,16 @@ async def _(bot: Bot, event: Event, state: T_State):
     global otw_counter
     global counter
     global curr_time
+    now = datetime.now(SH)
+    if now < open_time:
+        return
     if otw_dict[event.get_user_id()] == 0:
         otw_dict.pop(event.get_user_id())
         return
     otw_counter -= otw_dict[event.get_user_id()]
     counter += otw_dict[event.get_user_id()]
     otw_dict.pop(event.get_user_id())
-    curr_time = datetime.now(SH).strftime('%Y/%m/%d %H:%M:%S')
+    curr_time = now.strftime('%Y/%m/%d %H:%M:%S')
     if counter > 9:
         await arrive.send(Message([MessageSegment.text("收到"), {
             "type": "image",
@@ -228,12 +247,15 @@ otw_cancel = on_regex(r"^不出了$", rule=to_me(), block=True)
 async def _(bot: Bot, event: Event, state: T_State):
     global otw_counter
     global curr_time
+    now = datetime.now(SH)
+    if now < open_time:
+        return
     if otw_dict[event.get_user_id()] == 0:
         otw_dict.pop(event.get_user_id())
         return
     otw_counter -= otw_dict[event.get_user_id()]
     otw_dict.pop(event.get_user_id())
-    curr_time = datetime.now(SH).strftime('%Y/%m/%d %H:%M:%S')
+    curr_time = now.strftime('%Y/%m/%d %H:%M:%S')
     await otw.send("收到，现在路上" + str(otw_counter) + "人")
 
 
@@ -250,3 +272,20 @@ async def _(bot: Bot, event: Event, state: T_State):
         reply += MessageSegment.at(k)
         reply += MessageSegment.text(f"\t{v}人\n")
     await otw_who.finish(reply)
+
+
+clear = on_regex(r"^clear xinji$", permission=SUPERUSER | GROUP_ADMIN | GROUP_OWNER, rule=to_me(), block=True)
+
+
+def xinji_clear():
+    global counter, otw_counter, curr_time
+    counter = 0
+    otw_counter = 0
+    curr_time = ""
+    otw_dict.clear()
+
+
+@clear.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    xinji_clear()
+    await clear.finish("收到")

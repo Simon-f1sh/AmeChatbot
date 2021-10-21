@@ -122,6 +122,7 @@ class MusicList(List[Music]):
                bpm: Optional[Union[float, List[float], Tuple[float, float]]] = ...,
                type: Optional[Union[str, List[str]]] = ...,
                diff: List[int] = ...,
+               is_new: bool = None,
                ):
         new_list = MusicList()
         for music in self:
@@ -138,6 +139,8 @@ class MusicList(List[Music]):
             if not in_or_equal(music.type, type):
                 continue
             if not in_or_equal(music.bpm, bpm):
+                continue
+            if is_new is not None and not music['basic_info']['is_new'] == is_new:
                 continue
             if title_search is not Ellipsis and title_search.lower() not in music.title.lower():
                 continue

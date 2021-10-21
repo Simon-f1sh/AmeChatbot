@@ -3,6 +3,8 @@ import re
 import os
 import sys
 import shelve
+
+import nonebot
 import psutil
 import platform
 
@@ -343,6 +345,12 @@ repeat_dict = defaultdict(list)
 
 @repeat.handle()
 async def _(bot: Bot, event: Event, state: T_State):
+    try:
+        event.__getattribute__('group_id')
+    except AttributeError:
+        nonebot.logger.info("Private Msg")
+        return
+
     if event.__getattribute__('group_id') is None:
         event.__delattr__('group_id')
     else:

@@ -15,7 +15,7 @@ from src.libraries.image import image_to_base64
 from src.libraries.tool import hash
 from src.libraries.maimaidx_music import *
 from src.libraries.image import *
-from src.libraries.maimai_best_40 import generate
+from src.libraries.maimai_best_40 import generate, analyze
 import requests
 import json
 import random
@@ -25,7 +25,6 @@ import os
 import shelve
 import asyncio
 from urllib import parse
-
 
 driver = get_driver()
 
@@ -45,7 +44,8 @@ search<乐曲标题的一部分> 查询符合条件的乐曲
 base <定数>  查询定数对应的乐曲
 base <定数下限> <定数上限>
 line <难度+歌曲id> <分数线> 详情请输入“line 帮助”查看
-妹妹猜歌 猜歌游戏""")
+妹妹猜歌 猜歌游戏
+<随机数量>底分分析<查分器id> 通过b40情况推荐推分歌曲 <随机数量>和<查分器id>可不填""")
 
 
 def song_txt(music: Music):
@@ -152,9 +152,9 @@ async def _(bot: Bot, event: Event, state: T_State):
     res = total_list.filter(title_search=name)
     await search_music.finish(Message([
         {"type": "text",
-            "data": {
-                "text": f"{music['id']}. {music['title']}\n"
-            }} for music in res]))
+         "data": {
+             "text": f"{music['id']}. {music['title']}\n"
+         }} for music in res]))
 
 
 query_chart = on_regex(r"^([绿黄红紫白]?)id ([0-9]+)")
@@ -245,7 +245,6 @@ BREAK: {chart['notes'][4]}
 
 wm_list = ['拼机', '推分', '越级', '下埋', '夜勤', '练底力', '练手法', '打旧框', '干饭', '抓绝赞', '收歌']
 
-
 jrwm = on_command('今日运势', aliases={'今日运势'})
 
 
@@ -268,10 +267,11 @@ async def _(bot: Bot, event: Event, state: T_State):
     s += "tpz妹妹提醒您："  # 打机时不要大力拍打或滑动哦
     music = total_list[h2 % len(total_list)]
     await jrwm.finish(Message([
-        {"type": "text", "data": {"text": s}},
-        {"type": "image", "data": {"file": "file:///" + os.path.abspath("src/static/mai/pic/meimeinotice.jpg")}},
-        {"type": "text", "data": {"text": "\n今日推荐歌曲："}}
-    ] + song_txt(music)))
+                                  {"type": "text", "data": {"text": s}},
+                                  {"type": "image", "data": {
+                                      "file": "file:///" + os.path.abspath("src/static/mai/pic/meimeinotice.jpg")}},
+                                  {"type": "text", "data": {"text": "\n今日推荐歌曲："}}
+                              ] + song_txt(music)))
 
 
 music_aliases = defaultdict(list)
@@ -283,7 +283,6 @@ for t in tmp:
     for i in range(len(arr)):
         if arr[i] != "":
             music_aliases[arr[i].lower()].append(arr[0])
-
 
 find_song = on_regex(r".+是啥歌")
 
@@ -301,7 +300,7 @@ async def _(bot: Bot, event: Event, state: T_State):
         await find_song.finish(Message([{"type": "text", "data": {"text": "您要找的是不是"}}] + song_txt(music)))
     else:
         s = '\n'.join(result_set)
-        await find_song.finish(f"您要找的可能是以下歌曲中的其中一首：\n{ s }")
+        await find_song.finish(f"您要找的可能是以下歌曲中的其中一首：\n{s}")
 
 
 query_score = on_command('line')
@@ -355,12 +354,14 @@ async def _(bot: Bot, event: Event, state: T_State):
     分数线 {line}% 允许的最多 TAP GREAT 数量为 {(total_score * reduce / 10000):.2f}(每个-{10000 / total_score:.4f}%),
     BREAK 50落(一共{brk}个)等价于 {(break_50_reduce / 100):.3f} 个 TAP GREAT(-{break_50_reduce / total_score * 100:.4f}%)''')
             if random.random() < 0.3:
-                await query_chart.send(Message([{"type": "image", "data": {"file": "file:///" + os.path.abspath("src/static/mai/pic/meimeiyiban.jpg")}}]))
+                await query_chart.send(Message([{"type": "image", "data": {
+                    "file": "file:///" + os.path.abspath("src/static/mai/pic/meimeiyiban.jpg")}}]))
         except Exception:
             await query_chart.send("格式错误或未找到乐曲，输入“line 帮助”以查看帮助信息")
 
 
 best_40_pic_old = on_command('b40')
+
 
 @best_40_pic_old.handle()
 async def _(bot: Bot, event: Event, state: T_State):
@@ -379,20 +380,21 @@ async def _(bot: Bot, event: Event, state: T_State):
         }
     ]))
 
+
 best_40_pic = on_command('妹妹b40')
 
 
 @best_40_pic.handle()
 async def _(bot: Bot, event: Event, state: T_State):
     username = str(event.get_message()).strip()
-    print(event.message_id)
+    # print(event.message_id)
     if username == "":
         payload = {'qq': str(event.get_user_id())}
     else:
         payload = {'username': username}
     img, success = await generate(payload)
     if success == 400:
-        await best_40_pic.send("未找到此玩家，请确保此玩家的用户名和查分器中的用户名相同。")
+        await best_40_pic.send("未找到此玩家，请确保此玩家的用户名和查分器中的用户名相同。\n查分器绑定教程：https://www.diving-fish.com/maimaidx/prober_guide")
     elif success == 403:
         await best_40_pic.send("该用户禁止了其他人获取数据。")
     else:
@@ -401,6 +403,47 @@ async def _(bot: Bot, event: Event, state: T_State):
             MessageSegment.image(f"base64://{str(image_to_base64(img), encoding='utf-8')}")
         ]))
 
+
+ra_analysis = on_regex(r"^([0-9]*)底分分析(.*)$")
+
+
+@ra_analysis.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    regex = r"^([0-9]*)底分分析(.*)$"
+    res = re.match(regex, str(event.get_message()))
+    num = 3
+    username = ""
+    try:
+        if res.group(1) != "":
+            num = int(res.group(1))
+        if res.group(2) != "":
+            username = str(res.group(2)).strip()
+    except Exception as e:
+        print("Exception: " + e)
+        await ra_analysis.finish("命令错误，请检查语法")
+        return
+
+    if num > 100:
+        await ra_analysis.finish("数据量超出上限，请缩小随机数量")
+        return
+
+    # print(event.message_id)
+    if username == "":
+        payload = {'qq': str(event.get_user_id())}
+    else:
+        payload = {'username': username}
+    img, success = await analyze(payload, num)
+    if success == 400:
+        await ra_analysis.send("未找到此玩家，请确保此玩家的用户名和查分器中的用户名相同。\n查分器绑定教程：https://www.diving-fish.com/maimaidx/prober_guide")
+    elif success == 403:
+        await ra_analysis.send("该用户禁止了其他人获取数据。")
+    elif success == -1:
+        await ra_analysis.send("请先游玩游戏")
+    else:
+        await ra_analysis.send(Message([
+            MessageSegment.reply(event.message_id),
+            MessageSegment.image(f"base64://{str(image_to_base64(img), encoding='utf-8')}")
+        ]))
 
 
 disable_guess_music = on_command('猜歌设置', priority=0)
@@ -450,7 +493,7 @@ async def guess_music_loop(bot: Bot, event: Event, state: T_State):
             state["cycle"] += 1
             asyncio.create_task(bot.send(event, f"{cycle + 1}/7 这首歌" + guess.guess_options[cycle]))
     elif cycle < 7:
-        asyncio.create_task(bot.send(event, f"{cycle}/7 这首歌" + guess.guess_options[cycle-1]))
+        asyncio.create_task(bot.send(event, f"{cycle}/7 这首歌" + guess.guess_options[cycle - 1]))
     else:
         asyncio.create_task(bot.send(event, Message([
             MessageSegment.text("7/7 这首歌封面的一部分是："),
@@ -468,7 +511,9 @@ async def give_answer(bot: Bot, event: Event, state: T_State):
     guess: GuessObject = state["guess_object"]
     if guess.is_end:
         return
-    asyncio.create_task(bot.send(event, Message([MessageSegment.text("答案是：" + f"{guess.music['id']}. {guess.music['title']}\n"), MessageSegment.image(f"https://www.diving-fish.com/covers/{guess.music['id']}.jpg")])))
+    asyncio.create_task(bot.send(event, Message(
+        [MessageSegment.text("答案是：" + f"{guess.music['id']}. {guess.music['title']}\n"),
+         MessageSegment.image(f"https://www.diving-fish.com/covers/{guess.music['id']}.jpg")])))
     del guess_dict[state["k"]]
 
 
@@ -508,7 +553,8 @@ async def _(bot: Bot, event: Event, state: T_State):
     state["guess_object"] = guess
     state["cycle"] = 0
     guess_cd_dict[k] = time.time() + 600
-    await guess_music.send("我将从热门乐曲中选择一首歌，并描述它的一些特征，请输入歌曲的【id】、【歌曲标题】或【歌曲标题中 5 个以上连续的字符】进行猜歌（DX乐谱和标准乐谱视为两首歌）。猜歌时查歌等其他命令依然可用。\n警告：这个命令可能会很刷屏，管理员可以使用【猜歌设置】指令进行设置。")
+    await guess_music.send(
+        "我将从热门乐曲中选择一首歌，并描述它的一些特征，请输入歌曲的【id】、【歌曲标题】或【歌曲标题中 5 个以上连续的字符】进行猜歌（DX乐谱和标准乐谱视为两首歌）。猜歌时查歌等其他命令依然可用。\n警告：这个命令可能会很刷屏，管理员可以使用【猜歌设置】指令进行设置。")
     asyncio.create_task(guess_music_loop(bot, event, state))
 
 
@@ -524,7 +570,8 @@ async def _(bot: Bot, event: Event, state: T_State):
     ans = str(event.get_message())
     guess = guess_dict[k]
     # await guess_music_solve.send(ans + "|" + guess.music['id'])
-    if ans == guess.music['id'] or (ans.lower() == guess.music['title'].lower()) or (len(ans) >= 5 and ans.lower() in guess.music['title'].lower()):
+    if ans == guess.music['id'] or (ans.lower() == guess.music['title'].lower()) or (
+            len(ans) >= 5 and ans.lower() in guess.music['title'].lower()):
         guess.is_end = True
         del guess_dict[k]
         group_id = event.__getattribute__('group_id')

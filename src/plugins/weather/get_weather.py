@@ -4,7 +4,7 @@ import nonebot
 
 apikey = nonebot.get_driver().config.heweather_apikey
 if not apikey:
-    raise ValueError(f"请在环境变量中添加 qweather_apikey 参数")
+    raise ValueError(f"请在环境变量中添加 heweather_apikey 参数")
 url_weather_api = "https://devapi.qweather.com/v7/weather/"
 url_geoapi = "https://geoapi.qweather.com/v2/city/"
 
@@ -22,7 +22,8 @@ url_geoapi = "https://geoapi.qweather.com/v2/city/"
 async def get_weather(api_type: str, city_id: str) -> dict:
     async with AsyncClient() as client:
         res = await client.get(
-            url_weather_api + api_type, params={"location": city_id, "key": apikey}
+            url_weather_api + api_type, params={"location": city_id, "key": apikey},
+            timeout=30
         )
         return res.json()
 
@@ -33,17 +34,19 @@ async def get_weather_warning(city_id: str) -> dict:
         res = await client.get(
             "https://devapi.qweather.com/v7/warning/now",
             params={"location": city_id, "key": apikey},
+            timeout=30
         )
         res = res.json()
     return res if res["code"] == "200" and res["warning"] else None
 
 
-# 获取天气信息
+# 获取空气质量信息
 async def get_weather_air(city_id: str):
     async with AsyncClient() as client:
         res = await client.get(
             "https://devapi.qweather.com/v7/air/now?",
             params={"location": city_id, "key": apikey},
+            timeout=30
         )
         return res.json()
 

@@ -2,12 +2,14 @@
 import asyncio
 import os
 import math
+from random import shuffle
 from typing import Optional, Dict, List, Tuple
 
 import aiohttp
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
-from src.libraries.maimaidx_music import total_list
 
+from .maimaidx_music import total_list
+from .image import text_to_image
 
 scoreRank = 'D C B BB BBB A AA AAA S S+ SS SS+ SSS SSS+'.split(' ')
 combo = ' FC FC+ AP AP+'.split(' ')
@@ -15,8 +17,8 @@ diffs = 'Basic Advanced Expert Master Re:Master'.split(' ')
 
 
 class ChartInfo(object):
-    def __init__(self, idNum:str, diff:int, tp:str, achievement:float, ra:int, comboId:int, scoreId:int,
-                 title:str, ds:float, lv:str):
+    def __init__(self, idNum: str, diff: int, tp: str, achievement: float, ra: int, comboId: int, scoreId: int,
+                 title: str, ds: float, lv: str):
         self.idNum = idNum
         self.diff = diff
         self.tp = tp
@@ -57,20 +59,19 @@ class ChartInfo(object):
         )
 
 
-
 class BestList(object):
 
-    def __init__(self, size:int):
+    def __init__(self, size: int):
         self.data = []
         self.size = size
 
-    def push(self, elem:ChartInfo):
+    def push(self, elem: ChartInfo):
         if len(self.data) >= self.size and elem < self.data[-1]:
             return
         self.data.append(elem)
         self.data.sort()
         self.data.reverse()
-        while(len(self.data) > self.size):
+        while (len(self.data) > self.size):
             del self.data[-1]
 
     def pop(self):
@@ -88,7 +89,7 @@ class BestList(object):
 
 class DrawBest(object):
 
-    def __init__(self, sdBest:BestList, dxBest:BestList, userName:str, playerRating:int, musicRating:int):
+    def __init__(self, sdBest: BestList, dxBest: BestList, userName: str, playerRating: int, musicRating: int):
         self.sdBest = sdBest
         self.dxBest = dxBest
         self.userName = self._stringQ2B(userName)
@@ -115,7 +116,7 @@ class DrawBest(object):
             inside_code = 0x0020
         else:
             inside_code -= 0xfee0
-        if inside_code < 0x0020 or inside_code > 0x7e: #转完之后不是半角字符返回原来的字符
+        if inside_code < 0x0020 or inside_code > 0x7e:  # 转完之后不是半角字符返回原来的字符
             return uchar
         return chr(inside_code)
 
@@ -138,13 +139,13 @@ class DrawBest(object):
                 return wid
         return 1
 
-    def _coloumWidth(self, s:str):
+    def _coloumWidth(self, s: str):
         res = 0
         for ch in s:
             res += self._getCharWidth(ord(ch))
         return res
 
-    def _changeColumnWidth(self, s:str, len:int) -> str:
+    def _changeColumnWidth(self, s: str, len: int) -> str:
         res = 0
         sList = []
         for ch in s:
@@ -153,7 +154,7 @@ class DrawBest(object):
                 sList.append(ch)
         return ''.join(sList)
 
-    def _resizePic(self, img:Image.Image, time:float):
+    def _resizePic(self, img: Image.Image, time: float):
         return img.resize((int(img.size[0] * time), int(img.size[1] * time)))
 
     def _findRaPic(self) -> str:
@@ -178,7 +179,7 @@ class DrawBest(object):
             num = '09'
         return f'UI_CMN_DXRating_S_{num}.png'
 
-    def _drawRating(self, ratingBaseImg:Image.Image):
+    def _drawRating(self, ratingBaseImg: Image.Image):
         COLOUMS_RATING = [86, 100, 115, 130, 145]
         theRa = self.playerRating
         i = 4
@@ -191,7 +192,7 @@ class DrawBest(object):
             i = i - 1
         return ratingBaseImg
 
-    def _drawBestList(self, img:Image.Image, sdBest:BestList, dxBest:BestList):
+    def _drawBestList(self, img: Image.Image, sdBest: BestList, dxBest: BestList):
         itemW = 164
         itemH = 88
         Color = [(69, 193, 36), (255, 186, 1), (255, 90, 102), (134, 49, 200), (217, 197, 233)]
@@ -227,7 +228,8 @@ class DrawBest(object):
             rankImg = self._resizePic(rankImg, 0.3)
             temp.paste(rankImg, (88, 28), rankImg.split()[3])
             if chartInfo.comboId:
-                comboImg = Image.open(self.pic_dir + f'UI_MSS_MBase_Icon_{comboPic[chartInfo.comboId]}_S.png').convert('RGBA')
+                comboImg = Image.open(self.pic_dir + f'UI_MSS_MBase_Icon_{comboPic[chartInfo.comboId]}_S.png').convert(
+                    'RGBA')
                 comboImg = self._resizePic(comboImg, 0.45)
                 temp.paste(comboImg, (119, 27), comboImg.split()[3])
             font = ImageFont.truetype('src/static/adobe_simhei.otf', 12, encoding='utf-8')
@@ -356,9 +358,11 @@ class DrawBest(object):
         return self.img
 
 
-def computeRa(ds: float, achievement:float) -> int:
-    baseRa = 15.0
-    if achievement >= 50 and achievement < 60:
+def compute_ra(ds: float, achievement: float) -> int:
+    baseRa = 14.0
+    if achievement < 50:
+        baseRa = 1.0
+    if 50 <= achievement < 60:
         baseRa = 5.0
     elif achievement < 70:
         baseRa = 6.0
@@ -367,29 +371,67 @@ def computeRa(ds: float, achievement:float) -> int:
     elif achievement < 80:
         baseRa = 7.5
     elif achievement < 90:
-        baseRa = 8.0
+        baseRa = 8.5
     elif achievement < 94:
-        baseRa = 9.0
+        baseRa = 9.5
     elif achievement < 97:
-        baseRa = 9.4
+        baseRa = 10.5
     elif achievement < 98:
-        baseRa = 10.0
+        baseRa = 12.5
     elif achievement < 99:
-        baseRa = 11.0
+        baseRa = 12.7
     elif achievement < 99.5:
-        baseRa = 12.0
-    elif achievement < 99.99:
         baseRa = 13.0
     elif achievement < 100:
-        baseRa = 13.5
+        baseRa = 13.2
     elif achievement < 100.5:
-        baseRa = 14.0
+        baseRa = 13.5
 
     return math.floor(ds * (min(100.5, achievement) / 100) * baseRa)
 
 
+def truncate(number, digits) -> float:
+    stepper = 10.0 ** digits
+    return math.trunc(stepper * number) / stepper
+
+
+def compute_ds(ra: int, achievement: float) -> float:
+    baseRa = 14.0
+    if achievement < 50:
+        baseRa = 1.0
+    if 50 <= achievement < 60:
+        baseRa = 5.0
+    elif achievement < 70:
+        baseRa = 6.0
+    elif achievement < 75:
+        baseRa = 7.0
+    elif achievement < 80:
+        baseRa = 7.5
+    elif achievement < 90:
+        baseRa = 8.5
+    elif achievement < 94:
+        baseRa = 9.5
+    elif achievement < 97:
+        baseRa = 10.5
+    elif achievement < 98:
+        baseRa = 12.5
+    elif achievement < 99:
+        baseRa = 12.7
+    elif achievement < 99.5:
+        baseRa = 13.0
+    elif achievement < 100:
+        baseRa = 13.2
+    elif achievement < 100.5:
+        baseRa = 13.5
+
+    ds = round(ra / (min(100.5, achievement) / 100) / baseRa, 1)
+
+    return ds
+
+
 async def generate(payload: Dict) -> Tuple[Optional[Image.Image], bool]:
-    async with aiohttp.request("POST", "https://www.diving-fish.com/api/maimaidxprober/query/player", json=payload) as resp:
+    async with aiohttp.request("POST", "https://www.diving-fish.com/api/maimaidxprober/query/player",
+                               json=payload) as resp:
         if resp.status == 400:
             return None, 400
         if resp.status == 403:
@@ -403,5 +445,140 @@ async def generate(payload: Dict) -> Tuple[Optional[Image.Image], bool]:
             sd_best.push(ChartInfo.from_json(c))
         for c in dx:
             dx_best.push(ChartInfo.from_json(c))
-        pic = DrawBest(sd_best, dx_best, obj["nickname"], obj["rating"] + obj["additional_rating"], obj["rating"]).getDir()
+        pic = DrawBest(sd_best, dx_best, obj["nickname"], obj["rating"] + obj["additional_rating"],
+                       obj["rating"]).getDir()
+        return pic, 0
+
+
+def random_musics(sample_list: List, b40_list: List, lowest_ra: int, num: int, prev_list: List = None) -> List:
+    ret_list = []
+    if prev_list:
+        ret_list.extend(prev_list)
+    for music in sample_list:
+        # print(music)
+        found = next((item for item in b40_list if
+                      item['title'] == music.title and item['ds'] == music.ds[music.diff[0]]), None)
+        if not found:
+            music['100'] = compute_ra(music.ds[music.diff[0]], 100.0) - lowest_ra
+            music['100.5'] = compute_ra(music.ds[music.diff[0]], 100.5) - lowest_ra
+        else:
+            if found['achievements'] < 100.5:
+                if found['achievements'] < 100:
+                    music['100'] = compute_ra(music.ds[music.diff[0]], 100.0) - found['ra']
+                else:
+                    music['100'] = 0.0
+                music['100.5'] = compute_ra(music.ds[music.diff[0]], 100.5) - found['ra']
+            else:
+                continue
+        if music['100.5'] == 0:
+            continue
+        ret_list.append(music)
+        if len(ret_list) >= num:
+            break
+    return ret_list
+
+
+async def analyze(payload: Dict, num: int = 3) -> Tuple[Optional[Image.Image], bool]:
+    async with aiohttp.request("POST", "https://www.diving-fish.com/api/maimaidxprober/query/player",
+                               json=payload) as resp:
+        if resp.status == 400:
+            return None, 400
+        if resp.status == 403:
+            return None, 403
+        sd_best = BestList(25)
+        dx_best = BestList(15)
+        obj = await resp.json()
+        # print(obj)
+        dx: List[Dict] = obj["charts"]["dx"]
+        sd: List[Dict] = obj["charts"]["sd"]
+        dx_ra = 0
+        sd_ra = 0
+        for c in sd:
+            sd_best.push(ChartInfo.from_json(c))
+            sd_ra += c["ra"]
+        for c in dx:
+            dx_best.push(ChartInfo.from_json(c))
+            dx_ra += c["ra"]
+
+        sd_length = len(sd_best)
+        dx_length = len(dx_best)
+        if sd_length == 0 and dx_length == 0:
+            return None, -1
+        diff_list = ["Bas", "Adv", "Exp", "Mas", "ReM"]
+
+        analysis_text = f"""{obj["nickname"]}的底分分析如下"""
+        if sd_length > 0:
+            sd_lowest_ra = sd_best[sd_length - 1].ra
+            sd_upper_ds = round(compute_ds(sd_lowest_ra, 100) + 0.1, 1)
+            sd_lower_ds = round(compute_ds(sd_lowest_ra, 100.5) + 0.1, 1)
+            sd_sample_list = total_list.filter(ds=(sd_lower_ds, sd_upper_ds), is_new=False)
+            shuffle(sd_sample_list)
+            sd_chosen_list = random_musics(sd_sample_list, sd, sd_lowest_ra if sd_length == 25 else 0, num)
+            achievement = 100.0
+            while len(sd_chosen_list) < num and round(sd_upper_ds + 0.1, 1) <= 15.0 and achievement > 0:
+                achievement = round(achievement - 1.0)
+                sd_lower_ds = round(sd_upper_ds + 0.1, 1)
+                sd_upper_ds = round(compute_ds(sd_lowest_ra, achievement) + 0.1, 1)
+                sd_sample_list = total_list.filter(ds=(sd_lower_ds, sd_upper_ds), is_new=False)
+                shuffle(sd_sample_list)
+                print(sd_lower_ds, sd_upper_ds)
+                sd_chosen_list = random_musics(sd_sample_list, sd, sd_lowest_ra if sd_length == 25 else 0, num, sd_chosen_list)
+
+            sd_h_sssp = compute_ds(sd_best[0].ra, 100.5)
+            sd_h_sss = compute_ds(sd_best[0].ra, 100)
+            sd_h_ss = compute_ds(sd_best[0].ra, 99)
+            sd_l_sssp = compute_ds(sd_lowest_ra, 100.5)
+            sd_l_sss = compute_ds(sd_lowest_ra, 100)
+            sd_l_ss = compute_ds(sd_lowest_ra, 99)
+
+            analysis_text += f"""
+--------------------------
+你的b25分值为{sd_ra}
+最高为{sd_best[0].ra}，约为{sd_h_sssp}的100.5% {(str(sd_h_sss) + "的100%") if sd_h_sss <= 15.0 else ""} {(str(sd_h_ss) + "的99%") if sd_h_ss <= 15.0 else ""}
+最低为{sd_lowest_ra}，约为{sd_l_sssp}的100.5% {(str(sd_l_sss) + "的100%") if sd_l_sss <= 15.0 else ""} {(str(sd_l_ss) + "的99%") if sd_l_ss <= 15.0 else ""}
+随机提分金曲："""
+
+            for music in sd_chosen_list:
+                analysis_text += f"""
+{music.id}. {music.title} ({diff_list[music.diff[0]]}) {music.ds[music.diff[0]]}
+目标： {("100% Rating+" + str(music['100']) + " / ") if music['100'] > 0 else ""}100.5% Rating+{music['100.5']}"""
+
+        if dx_length > 0:
+            dx_lowest_ra = dx_best[dx_length - 1].ra
+            dx_upper_ds = round(compute_ds(dx_lowest_ra, 100) + 0.1, 1)
+            dx_lower_ds = round(compute_ds(dx_lowest_ra, 100.5) + 0.1, 1)
+            dx_sample_list = total_list.filter(ds=(dx_lower_ds, dx_upper_ds), is_new=True)
+            shuffle(dx_sample_list)
+            dx_chosen_list = random_musics(dx_sample_list, dx, dx_lowest_ra if dx_length == 15 else 0, num)
+            achievement = 100.0
+            while len(dx_chosen_list) < num and round(dx_upper_ds + 0.1, 1) <= 15.0 and achievement > 0:
+                achievement = round(achievement - 1.0)
+                dx_lower_ds = round(dx_upper_ds + 0.1, 1)
+                dx_upper_ds = round(compute_ds(dx_lowest_ra, achievement) + 0.1, 1)
+                dx_sample_list = total_list.filter(ds=(dx_lower_ds, dx_upper_ds), is_new=True)
+                shuffle(dx_sample_list)
+                print(dx_lower_ds, dx_upper_ds)
+                dx_chosen_list = random_musics(dx_sample_list, dx, dx_lowest_ra if dx_length == 15 else 0, num, dx_chosen_list)
+
+            dx_h_sssp = compute_ds(dx_best[0].ra, 100.5)
+            dx_h_sss = compute_ds(dx_best[0].ra, 100)
+            dx_h_ss = compute_ds(dx_best[0].ra, 99)
+            dx_l_sssp = compute_ds(dx_lowest_ra, 100.5)
+            dx_l_sss = compute_ds(dx_lowest_ra, 100)
+            dx_l_ss = compute_ds(dx_lowest_ra, 99)
+
+            analysis_text += f"""
+--------------------------
+你的b15分值为{dx_ra}
+最高为{dx_best[0].ra}，约为{dx_h_sssp}的100.5% {(str(dx_h_sss) + "的100%") if dx_h_sss <= 15.0 else ""} {(str(dx_h_ss) + "的99%") if dx_h_ss <= 15.0 else ""}
+最低为{dx_lowest_ra}，约为{dx_l_sssp}的100.5% {(str(dx_l_sss) + "的100%") if dx_l_sss <= 15.0 else ""} {(str(dx_l_ss) + "的99%") if dx_l_ss <= 15.0 else ""}
+随机提分金曲："""
+
+            for music in dx_chosen_list:
+                analysis_text += f"""
+{music.id}. {music.title} ({diff_list[music.diff[0]]}) {music.ds[music.diff[0]]}
+目标： {("100% Rating+" + str(music['100']) + " / ") if music['100'] > 0 else ""}100.5% Rating+{music['100.5']}"""
+
+        pic = text_to_image(analysis_text)
+        # DrawBest(sd_best, dx_best, obj["nickname"], obj["rating"] + obj["additional_rating"], obj["rating"]).getDir()
         return pic, 0
