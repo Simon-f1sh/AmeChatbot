@@ -20,8 +20,8 @@ class GuessObject:
             f"的分类是 {self.music['basic_info']['genre']}",
             f"的版本是 {self.music['basic_info']['from']}",
             f"的艺术家是 {self.music['basic_info']['artist']}",
-            f"{'不' if self.music['type'] == 'SD' else ''}是 DX 谱面",
-            f"{'没' if len(self.music['ds']) == 4 else ''}有白谱",
+            # f"{'不' if self.music['type'] == 'SD' else ''}是 DX 谱面",
+            f"{'没有白谱' if len(self.music['ds']) == 4 else ('的 Re:Master 难度是 ' + str(self.music['level'][4]))}",
             f"的 BPM 是 {self.music['basic_info']['bpm']}"
         ]
         self.guess_options = random.sample(self.guess_options, 6)

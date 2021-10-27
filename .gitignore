@@ -136,3 +136,6 @@ src/static/poke.db.*
 /src/static/guess.db.dat
 /src/static/guess.db.dir
 /src/static/weather/
+/src/static/vocab.db.bak
+/src/static/vocab.db.dir
+/src/static/vocab.db.dat

@@ -292,7 +292,7 @@ async def _(bot: Bot, event: Event, state: T_State):
     regex = "(.+)是啥歌"
     name = re.match(regex, str(event.get_message())).groups()[0].strip().lower()
     if name not in music_aliases:
-        await find_song.finish("未找到此歌曲\n舞萌 DX 歌曲别名收集计划：https://docs.qq.com/sheet/DRk5sckZKd0RZREZi")
+        await find_song.finish("未找到此歌曲\n舞萌 DX 歌曲别名收集计划：https://docs.qq.com/sheet/DRkZyUnpZVUZUQ0h4")
         return
     result_set = music_aliases[name]
     if len(result_set) == 1:
