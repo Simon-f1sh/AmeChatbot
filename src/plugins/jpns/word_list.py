@@ -1,6 +1,8 @@
 from collections import defaultdict
+from typing import Dict, Tuple
 
 word_list = defaultdict(dict)
+quiz_dict: Dict[Tuple[str, str], list] = {}
 f = open('src/static/jpns/n2wordlist.csv', 'r', encoding='utf-8')
 tmp = f.readlines()
 f.close()

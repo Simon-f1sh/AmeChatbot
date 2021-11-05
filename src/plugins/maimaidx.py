@@ -2,7 +2,7 @@ import math
 from collections import defaultdict
 from typing import List, Dict, Any
 
-from nonebot import on_command, on_message, on_notice, on_regex, get_driver
+from nonebot import on_command, on_message, on_notice, on_regex, get_driver, require, get_bots
 from nonebot.log import logger
 from nonebot.permission import Permission
 from nonebot.typing import T_State
@@ -28,6 +28,13 @@ from urllib import parse
 
 driver = get_driver()
 
+scheduler = require("nonebot_plugin_apscheduler").scheduler
+
+
+async def sandian():
+    (bot,) = get_bots().values()
+    await bot.send_group_msg(group_id=879106299, message=MessageSegment.image("file:///" + os.path.abspath("src/static/mai/pic/sandian.jpg")))
+
 
 @driver.on_startup
 def _():
@@ -46,6 +53,12 @@ base <定数下限> <定数上限>
 line <难度+歌曲id> <分数线> 详情请输入“line 帮助”查看
 妹妹猜歌 猜歌游戏
 <随机数量>底分分析<查分器id> 通过b40情况推荐推分歌曲 <随机数量>和<查分器id>可不填""")
+    scheduler.add_job(
+        sandian,
+        trigger='cron',
+        hour=15,
+        minute=0,
+    )
 
 
 def song_txt(music: Music):
@@ -356,7 +369,8 @@ async def _(bot: Bot, event: Event, state: T_State):
             if random.random() < 0.3:
                 await query_chart.send(Message([{"type": "image", "data": {
                     "file": "file:///" + os.path.abspath("src/static/mai/pic/meimeiyiban.jpg")}}]))
-        except Exception:
+        except Exception as e:
+            print(e)
             await query_chart.send("格式错误或未找到乐曲，输入“line 帮助”以查看帮助信息")
 
 
