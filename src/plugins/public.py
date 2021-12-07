@@ -121,26 +121,31 @@ async def _(bot: Bot, event: Event, state: T_State):
                 "qq": f"{event.sender_id}"
             }
         }]))
-    elif r == 1:
-        await poke.send(Message('妈你戳'))
-    elif r == 2:
-        url = await get_jlpx('戳', '你妈', '闲着没事干')
+    elif r <= 3:
         await poke.send(Message([{
-            "type": "image",
-            "data": {
-                "file": url
-            }
-        }]))
-    elif r == 3:
-        img_p = Image.open(path)
-        draw_text(img_p, '戳你妈', 0)
-        draw_text(img_p, '有尝试过玩Cytus II吗', 400)
-        await poke.send(Message([{
-            "type": "image",
-            "data": {
-                "file": f"base64://{str(image_to_base64(img_p), encoding='utf-8')}"
-            }
-        }]))
+                "type": "record",
+                "data": {
+                    "file": "file:///" + os.path.abspath("src/static/mai/poke/youkemoshima.mp3")
+                }
+            }]))
+    # elif r == 2:
+    #     url = await get_jlpx('戳', '你妈', '闲着没事干')
+    #     await poke.send(Message([{
+    #         "type": "image",
+    #         "data": {
+    #             "file": url
+    #         }
+    #     }]))
+    # elif r == 3:
+    #     img_p = Image.open(path)
+    #     draw_text(img_p, '戳你妈', 0)
+    #     draw_text(img_p, '有尝试过玩Cytus II吗', 400)
+    #     await poke.send(Message([{
+    #         "type": "image",
+    #         "data": {
+    #             "file": f"base64://{str(image_to_base64(img_p), encoding='utf-8')}"
+    #         }
+    #     }]))
     elif r == 4:
         await poke.send(Message('15级？'))
     elif 4 < r <= 8:
