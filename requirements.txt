@@ -96,3 +96,5 @@ Werkzeug==1.0.1
 wsproto==0.15.0
 yarl==1.4.2
 psutil
+cos-python-sdk-v5
+qcloud-python-sts

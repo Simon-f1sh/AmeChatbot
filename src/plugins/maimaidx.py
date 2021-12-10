@@ -2,6 +2,7 @@ import math
 from collections import defaultdict
 from typing import List, Dict, Any
 
+from dotenv import load_dotenv
 from nonebot import on_command, on_message, on_notice, on_regex, get_driver, require, get_bots
 from nonebot.log import logger
 from nonebot.permission import Permission
@@ -9,6 +10,9 @@ from nonebot.typing import T_State
 from nonebot.adapters import Event, Bot
 from nonebot.adapters.cqhttp import Message, MessageSegment, GroupMessageEvent, PrivateMessageEvent
 from src.libraries.maimaidx_guess import GuessObject
+
+from qcloud_cos import CosConfig, CosS3Client
+from sts.sts import Sts
 
 from PIL import Image
 from src.libraries.image import image_to_base64
@@ -26,14 +30,24 @@ import shelve
 import asyncio
 from urllib import parse
 
+# 配置腾讯api
+
+load_dotenv()
+secret_id = os.getenv('SECRET_ID')  # 替换为用户的 SecretId，请登录访问管理控制台进行查看和管理，https://console.cloud.tencent.com/cam/capi
+secret_key = os.getenv('SECRET_KEY')  # 替换为用户的 SecretKey，请登录访问管理控制台进行查看和管理，https://console.cloud.tencent.com/cam/capi
+region = 'ap-beijing'  # 替换为用户的 region，已创建桶归属的region可以在控制台查看，https://console.cloud.tencent.com/cos5/bucket
+bucket_name = "tpz-1254072339"
+config = CosConfig(Region=region, SecretId=secret_id, SecretKey=secret_key)
+client = CosS3Client(config)
+
 driver = get_driver()
 
 scheduler = require("nonebot_plugin_apscheduler").scheduler
 
-
 async def sandian():
     (bot,) = get_bots().values()
-    await bot.send_group_msg(group_id=879106299, message=MessageSegment.image("file:///" + os.path.abspath("src/static/mai/pic/sandian.jpg")))
+    await bot.send_group_msg(group_id=879106299, message=MessageSegment.image(
+        "file:///" + os.path.abspath("src/static/mai/pic/sandian.jpg")))
 
 
 @driver.on_startup
@@ -408,7 +422,8 @@ async def _(bot: Bot, event: Event, state: T_State):
         payload = {'username': username}
     img, success = await generate(payload)
     if success == 400:
-        await best_40_pic.send("未找到此玩家，请确保此玩家的用户名和查分器中的用户名相同。\n查分器绑定教程：https://www.diving-fish.com/maimaidx/prober_guide")
+        await best_40_pic.send(
+            "未找到此玩家，请确保此玩家的用户名和查分器中的用户名相同。\n查分器绑定教程：https://www.diving-fish.com/maimaidx/prober_guide")
     elif success == 403:
         await best_40_pic.send("该用户禁止了其他人获取数据。")
     else:
@@ -448,7 +463,8 @@ async def _(bot: Bot, event: Event, state: T_State):
         payload = {'username': username}
     img, success = await analyze(payload, num)
     if success == 400:
-        await ra_analysis.send("未找到此玩家，请确保此玩家的用户名和查分器中的用户名相同。\n查分器绑定教程：https://www.diving-fish.com/maimaidx/prober_guide")
+        await ra_analysis.send(
+            "未找到此玩家，请确保此玩家的用户名和查分器中的用户名相同。\n查分器绑定教程：https://www.diving-fish.com/maimaidx/prober_guide")
     elif success == 403:
         await ra_analysis.send("该用户禁止了其他人获取数据。")
     elif success == -1:
@@ -653,3 +669,102 @@ guess_stat = on_command("本群猜歌情况")
 async def _(bot: Bot, event: Event, state: T_State):
     group_id = event.group_id
     await send_guess_stat(group_id, bot)
+
+
+sing = on_regex(r"^(妹妹唱歌)( )?(id)?( )?([0-9]{1,5})?$", block=True)
+
+
+@sing.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    regex = r"^(妹妹唱歌)( )?(id)?( )?([0-9]{1,5})?$"
+    res = re.match(regex, str(event.get_message()))
+    try:
+        if res.group(5) is not None:
+            music = total_list.by_id(res.group(5))
+            if music is None:
+                music = {'id': res.group(5), 'title': '', 'basic_info': {'artist': ''}}
+        else:
+            music = total_list.random()
+    except Exception as e:
+        print("Exception: " + e)
+        await sing.finish("命令错误，请检查语法")
+        return
+    response = await search_audio(music)
+    await sing.finish(response)
+
+
+sing_aliases = on_regex(r"^妹妹唱(.+)$", priority=2, block=True)
+
+
+@sing_aliases.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    regex = "妹妹唱(.+)"
+    name = re.match(regex, str(event.get_message())).groups()[0].strip().lower()
+    music = total_list.by_title(name)
+    if music is None:
+        if name not in music_aliases:
+            await sing_aliases.finish("未找到此歌曲\n舞萌 DX 歌曲别名收集计划：https://docs.qq.com/sheet/DRkZyUnpZVUZUQ0h4")
+            return
+        result_set = music_aliases[name]
+        music = total_list.by_title(random.choice(result_set))
+        response = await search_audio(music)
+        await sing_aliases.finish(response)
+    else:
+        response = await search_audio(music)
+        await sing_aliases.finish(response)
+
+
+async def search_audio(music: Music):
+    music_id = music['id']
+    sound_id = music_id[1:5].lstrip("0") if len(music_id) == 5 else music_id
+    print(sound_id)
+    tmp_secret_id, tmp_secret_key, temp_token = await create_temp_token(sound_id)
+    key = f"sound/{sound_id}.mp3"
+    tmp_config = CosConfig(Region=region, SecretId=tmp_secret_id, SecretKey=tmp_secret_key)
+    tmp_client = CosS3Client(tmp_config)
+    if not client.object_exists(Bucket=bucket_name, Key=key):
+        return "未找到该歌曲"
+    response = parse.unquote(
+        tmp_client.get_presigned_url(Bucket=bucket_name, Key=key, Params={"x-cos-security-token": temp_token},
+                                     Method='GET', Expired=600))
+    print(response)
+    return MessageSegment.music_custom("",
+                                       response,
+                                       f"{music_id}. {music['title']}",
+                                       music['basic_info']['artist'],
+                                       f"https://www.diving-fish.com/covers/{music_id}.jpg")
+
+
+async def create_temp_token(sound_id: str):
+    req_config = {
+        'url': 'https://sts.tencentcloudapi.com/',
+        # 域名，非必须，默认为 sts.tencentcloudapi.com
+        'domain': 'sts.tencentcloudapi.com',
+        # 临时密钥有效时长，单位是秒
+        'duration_seconds': 600,
+        'secret_id': secret_id,
+        # 固定密钥
+        'secret_key': secret_key,
+        # 换成你的 bucket
+        'bucket': bucket_name,
+        # 换成 bucket 所在地区
+        'region': region,
+        # 这里改成允许的路径前缀，可以根据自己网站的用户登录态判断允许上传的具体路径
+        # 例子： a.jpg 或者 a/* 或者 * (使用通配符*存在重大安全风险, 请谨慎评估使用)
+        'allow_prefix': f'sound/{sound_id}.mp3',
+        # 密钥的权限列表。简单上传和分片需要以下的权限，其他权限列表请看 https://cloud.tencent.com/document/product/436/31923
+        'allow_actions': [
+            # 下载操作
+            "name/cos:GetObject"
+        ],
+
+    }
+
+    try:
+        sts = Sts(req_config)
+        response = sts.get_credential()
+        return response["credentials"]["tmpSecretId"], \
+               response["credentials"]["tmpSecretKey"], \
+               response["credentials"]["sessionToken"]
+    except Exception as e:
+        print(e)
