@@ -66,7 +66,9 @@ base <定数>  查询定数对应的乐曲
 base <定数下限> <定数上限>
 line <难度+歌曲id> <分数线> 详情请输入“line 帮助”查看
 妹妹猜歌 猜歌游戏
-<随机数量>底分分析<查分器id> 通过b40情况推荐推分歌曲 <随机数量>和<查分器id>可不填""")
+<随机数量>底分分析<查分器id> 通过b40情况推荐推分歌曲 <随机数量>和<查分器id>可不填
+妹妹唱歌 <歌曲id> 根据id点歌，不填写id时为随机点歌
+妹妹唱<歌曲名称/别名> 根据名称或别名点歌""")
     scheduler.add_job(
         sandian,
         trigger='cron',
@@ -319,7 +321,7 @@ async def _(bot: Bot, event: Event, state: T_State):
     regex = "(.+)是啥歌"
     name = re.match(regex, str(event.get_message())).groups()[0].strip().lower()
     if name not in music_aliases:
-        await find_song.finish("未找到此歌曲\n舞萌 DX 歌曲别名收集计划：https://docs.qq.com/sheet/DRkZyUnpZVUZUQ0h4")
+        await find_song.finish("未找到此歌曲\n舞萌 DX 歌曲别名收集计划：https://docs.qq.com/sheet/DRmFTeFl5d1BRa213")
         return
     result_set = music_aliases[name]
     if len(result_set) == 1:
@@ -703,7 +705,7 @@ async def _(bot: Bot, event: Event, state: T_State):
     music = total_list.by_title(name)
     if music is None:
         if name not in music_aliases:
-            await sing_aliases.finish("未找到此歌曲\n舞萌 DX 歌曲别名收集计划：https://docs.qq.com/sheet/DRkZyUnpZVUZUQ0h4")
+            await sing_aliases.finish("未找到此歌曲\n舞萌 DX 歌曲别名收集计划：https://docs.qq.com/sheet/DRmFTeFl5d1BRa213")
             return
         result_set = music_aliases[name]
         music = total_list.by_title(random.choice(result_set))
