@@ -677,7 +677,7 @@ sing = on_regex(r"^(妹妹唱歌)( )?(id)?( )?([0-9]{1,5})?$", block=True)
 
 
 @sing.handle()
-async def _(bot: Bot, event: Event, state: T_State):
+async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
     regex = r"^(妹妹唱歌)( )?(id)?( )?([0-9]{1,5})?$"
     res = re.match(regex, str(event.get_message()))
     try:
@@ -699,7 +699,7 @@ sing_aliases = on_regex(r"^妹妹唱(.+)$", priority=2, block=True)
 
 
 @sing_aliases.handle()
-async def _(bot: Bot, event: Event, state: T_State):
+async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
     regex = "妹妹唱(.+)"
     name = re.match(regex, str(event.get_message())).groups()[0].strip().lower()
     music = total_list.by_title(name)
