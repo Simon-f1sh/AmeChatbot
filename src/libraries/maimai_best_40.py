@@ -424,7 +424,7 @@ def compute_ds(ra: int, achievement: float) -> float:
     elif achievement < 100.5:
         baseRa = 13.5
 
-    ds = round(ra / (min(100.5, achievement) / 100) / baseRa, 1)
+    ds = math.ceil(ra / (min(100.5, achievement) / 100) / baseRa * 10) / 10
 
     return ds
 

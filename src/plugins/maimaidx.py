@@ -20,6 +20,7 @@ from src.libraries.tool import hash
 from src.libraries.maimaidx_music import *
 from src.libraries.image import *
 from src.libraries.maimai_best_40 import generate, analyze
+from src.libraries.maimai_records import get_records_by_level
 import requests
 import json
 import random
@@ -43,6 +44,7 @@ client = CosS3Client(config)
 driver = get_driver()
 
 scheduler = require("nonebot_plugin_apscheduler").scheduler
+
 
 async def sandian():
     (bot,) = get_bots().values()
@@ -770,3 +772,41 @@ async def create_temp_token(sound_id: str):
                response["credentials"]["sessionToken"]
     except Exception as e:
         print(e)
+
+
+records_by_level = on_regex(r"^([0-9]+)(\+)?(分数列表)([0-9]+)?$", block=True)
+
+
+@records_by_level.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    regex = r"([0-9]+)(\+)?(分数列表)([0-9]*)?"
+    res = re.match(regex, str(event.get_message()))
+    try:
+        if 1 <= int(res.group(1)) <= 15:
+            level = res.group(1)
+            if res.group(2):
+                level += res.group(2)
+        else:
+            await records_by_level.send(
+                MessageSegment.image("file:///" + os.path.abspath("src/static/mai/pic/meimeib40.jpg")))
+            return
+        if res.group(4):
+            page = int(res.group(4))
+        else:
+            page = 1
+    except Exception as e:
+        print("Exception: " + e)
+        await sing.finish("命令错误，请检查语法")
+        return
+
+    res, status = await get_records_by_level(level, page, str(event.get_user_id()))
+
+    if status == 400:
+        await records_by_level.send(
+            "未找到此玩家，请确保此玩家的用户名和查分器中的用户名相同。\n查分器绑定教程：https://www.diving-fish.com/maimaidx/prober_guide")
+    elif status == 403:
+        await records_by_level.send("该用户禁止了其他人获取数据。")
+    elif status == -1:
+        return
+    else:
+        await records_by_level.finish(MessageSegment.image(f"base64://{str(image_to_base64(res), encoding='utf-8')}"))
