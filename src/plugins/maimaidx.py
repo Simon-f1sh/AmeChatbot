@@ -15,7 +15,7 @@ from qcloud_cos import CosConfig, CosS3Client
 from sts.sts import Sts
 
 from PIL import Image
-from src.libraries.image import image_to_base64
+from src.libraries.image import image_to_base64, text_to_image
 from src.libraries.tool import hash
 from src.libraries.maimaidx_music import *
 from src.libraries.image import *
@@ -128,13 +128,21 @@ async def _(bot: Bot, event: Event, state: T_State):
         result_set = inner_level_q(float(argv[0]))
     else:
         result_set = inner_level_q(float(argv[0]), float(argv[1]))
-    if len(result_set) > 50:
-        await inner_level.finish("数据超出 50 条，请尝试缩小查询范围")
+
+    if len(result_set) == 0:
+        await inner_level.finish("无查询结果")
+        return
+
+    if len(result_set) > 200:
+        await inner_level.finish("数据超出 200 条，请尝试缩小查询范围")
         return
     s = ""
+    result_set = sorted(result_set, key=lambda k: (k[2], int(k[0]))) # k[2]为定数 k[0]为id
     for elem in result_set:
         s += f"{elem[0]}. {elem[1]} {elem[3]} {elem[4]}({elem[2]})\n"
-    await inner_level.finish(s.strip())
+
+    img = text_to_image(s.strip())
+    await inner_level.finish(MessageSegment.image(f"base64://{str(image_to_base64(img), encoding='utf-8')}"))
 
 
 spec_rand = on_regex(r"^随个(?:dx|sd|标准)?[绿黄红紫白]?[0-9]+\+?", priority=0)
