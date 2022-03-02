@@ -11,7 +11,7 @@ load_dotenv()
 developer_token = os.getenv('DEVELOPER_TOKEN')
 
 
-async def get_records_by_level(level: str, page: int, qq: str, username: Optional[str] = "") -> Tuple[Optional[Image.Image], int]:
+async def get_records_by_level_or_ds(page: int, qq: str, username: Optional[str] = "", level: str = None, ds: str = None) -> Tuple[Optional[Image.Image], int]:
     if username == "":
         username, status = await get_username(qq)
         if status != 200:
@@ -22,13 +22,23 @@ async def get_records_by_level(level: str, page: int, qq: str, username: Optiona
         if resp.status == 400:
             return None, 400
         records = await resp.json()
-        filtered_records = sorted(list(filter(lambda song: song['level'] == level, records['records'])),
-                                  key=lambda song: song['achievements'], reverse=True)
+
+        if level:
+            filtered_records = sorted(list(filter(lambda song: song['level'] == level, records['records'])),
+                                      key=lambda song: song['achievements'], reverse=True)
+            text = f"你的{level}分数列表(从高到低):\n"
+        elif ds:
+            filtered_records = sorted(list(filter(lambda song: song['ds'] == float(ds), records['records'])),
+                                      key=lambda song: song['achievements'], reverse=True)
+            text = f"你的{ds}分数列表(从高到低):\n"
+        else:
+            return None, -1
+
         records_len = len(filtered_records)
         index = (page - 1) * 25
         if index >= records_len or index < 0:
             return None, -1
-        text = f"你的{level}分数列表(从高到低):\n"
+
         for i in range(index, min(index + 25, records_len)):
             record = filtered_records[i]
             achievement = format(record['achievements'], '.4f')

@@ -33,7 +33,8 @@ def cross(checker: List[Any], elem: Optional[Union[Any, List[Any]]], diff):
                 continue
             __e = checker[_j]
             if elem == __e:
-                return True, [_j]
+                diff_ret.append(_j)
+                ret = True
     return ret, diff_ret
 
 

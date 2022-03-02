@@ -20,7 +20,7 @@ from src.libraries.tool import hash
 from src.libraries.maimaidx_music import *
 from src.libraries.image import *
 from src.libraries.maimai_best_40 import generate, analyze
-from src.libraries.maimai_records import get_records_by_level
+from src.libraries.maimai_records import get_records_by_level_or_ds
 import requests
 import json
 import random
@@ -782,24 +782,26 @@ async def create_temp_token(sound_id: str):
         print(e)
 
 
-records_by_level = on_regex(r"^([0-9]+)(\+)?(分数列表)([0-9]+)?$", block=True)
+records_by_level = on_regex(r"^(([0-9]+\+?)|([0-9]+\.[0-9]{1}))(分数列表)([0-9]+)?$", block=True)
 
 
 @records_by_level.handle()
 async def _(bot: Bot, event: Event, state: T_State):
-    regex = r"([0-9]+)(\+)?(分数列表)([0-9]*)?"
+    regex = r"(([0-9]+\+?)|([0-9]+\.[0-9]{1}))(分数列表)([0-9]+)?"
     res = re.match(regex, str(event.get_message()))
+    level = None
+    ds = None
     try:
-        if 1 <= int(res.group(1)) <= 15:
-            level = res.group(1)
-            if res.group(2):
-                level += res.group(2)
+        if res.group(2) and 1 <= int(res.group(2).replace("+", "")) <= 15:
+            level = res.group(2)
+        elif res.group(3) and 1.0 <= float(res.group(3)) <= 15.0:
+            ds = res.group(3)
         else:
             await records_by_level.send(
                 MessageSegment.image("file:///" + os.path.abspath("src/static/mai/pic/meimeib40.jpg")))
             return
-        if res.group(4):
-            page = int(res.group(4))
+        if res.group(5):
+            page = int(res.group(5))
         else:
             page = 1
     except Exception as e:
@@ -807,7 +809,9 @@ async def _(bot: Bot, event: Event, state: T_State):
         await sing.finish("命令错误，请检查语法")
         return
 
-    res, status = await get_records_by_level(level, page, str(event.get_user_id()))
+    print(level)
+    print(ds)
+    res, status = await get_records_by_level_or_ds(page=page, qq=str(event.get_user_id()), level=level, ds=ds)
 
     if status == 400:
         await records_by_level.send(
@@ -815,6 +819,6 @@ async def _(bot: Bot, event: Event, state: T_State):
     elif status == 403:
         await records_by_level.send("该用户禁止了其他人获取数据。")
     elif status == -1:
-        return
+        await records_by_level.finish(MessageSegment.image("file:///" + os.path.abspath("src/static/mai/pic/mfywakaranai.jpg")))
     else:
         await records_by_level.finish(MessageSegment.image(f"base64://{str(image_to_base64(res), encoding='utf-8')}"))
