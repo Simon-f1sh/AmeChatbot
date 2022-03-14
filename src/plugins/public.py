@@ -9,21 +9,55 @@ import psutil
 import platform
 
 from PIL import Image
-from nonebot import on_command, on_message, on_notice, require, get_driver, on_regex
+from nonebot import on_command, on_message, on_notice, require, get_driver, on_regex, get_bots, logger
 from nonebot.typing import T_State
-from nonebot.adapters.cqhttp import Message, Event, Bot
+from nonebot.adapters.cqhttp import Message, Event, Bot, MessageEvent, GroupMessageEvent, MessageSegment
 from nonebot.permission import SUPERUSER
 from nonebot.adapters.cqhttp.permission import GROUP_ADMIN, GROUP_OWNER
 from random import randint
 import asyncio
 
-from src.libraries.image import image_to_base64, path, draw_text, get_jlpx, text_to_image
+from src.libraries.image import image_to_base64, path, draw_text, get_jlpx, text_to_image, wc_to_image
 from src.libraries.tool import hash
+from src.libraries.word_cloud import fetch_records, wordcloud_generate
 
 import time
+from datetime import datetime, timedelta
+import pytz
 from collections import defaultdict
 
+driver = get_driver()
+
+SH = pytz.timezone('Asia/Shanghai')
 scheduler = require("nonebot_plugin_apscheduler").scheduler
+record_folder = "src/static/record/"
+if not os.path.exists(record_folder):
+    # Create a new directory because it does not exist
+    os.makedirs(record_folder)
+    print("The record folder is created!")
+
+
+async def weekly_wordcloud():
+    (bot,) = get_bots().values()
+    start_date = (datetime.now(SH) - timedelta(days=7)).strftime("%Y%m%d")
+    end_date = (datetime.now(SH) - timedelta(days=1)).strftime("%Y%m%d")
+    logger.info(f"WordCloud Start Date: {start_date}")
+    logger.info(f"WordCloud End Date: {end_date}")
+    await bot.send_group_msg(group_id=879106299, message="正在生成上周词云...")
+    result_wc = wordcloud_generate(fetch_records(record_folder, start_date, end_date))
+    await bot.send_group_msg(group_id=879106299, message=MessageSegment.image(f"base64://{str(image_to_base64(wc_to_image(result_wc)), encoding='utf-8')}"))
+
+
+@driver.on_startup
+def _():
+    scheduler.add_job(
+        weekly_wordcloud,
+        trigger='cron',
+        day_of_week='mon',
+        hour=0,
+        minute=0,
+    )
+
 
 help = on_command('help')
 
@@ -53,6 +87,36 @@ async def _(bot: Bot, event: Event, state: dict):
     h = hash(qq)
     rp = h % 100
     await jrrp.finish("【%s】今天的人品值为：%d" % (event.sender.nickname, rp))
+
+
+ciyun = on_command("词云")
+
+
+@ciyun.handle()
+async def _(bot: Bot, event: GroupMessageEvent, state: dict):
+    argv = str(event.get_message()).strip().split(" ")
+    if len(argv) > 2 or (len(argv) == 1 and len(argv[0]) == 0):
+        await ciyun.finish("命令格式为\n词云 <日期>\n词云 <开始日期> <结束日期>\n日期格式为yyyymmdd(如20220301)")
+        return
+    for arg in argv:
+        try:
+            datetime.strptime(arg, "%Y%m%d")
+        except ValueError:
+            await ciyun.send("请检查日期格式(yyyymmdd)")
+            return
+    if len(argv) == 1:
+        record_files = fetch_records(record_folder, argv[0])
+    else:
+        record_files = fetch_records(record_folder, argv[0], argv[1])
+
+    if record_files:
+        await ciyun.send("正在生成...")
+    else:
+        await ciyun.send("无查询记录")
+        return
+
+    result_wc = wordcloud_generate(record_files)
+    await ciyun.finish(MessageSegment.image(f"base64://{str(image_to_base64(wc_to_image(result_wc)), encoding='utf-8')}"))
 
 
 async def _group_poke(bot: Bot, event: Event, state: dict) -> bool:
@@ -376,6 +440,29 @@ async def _(bot: Bot, event: Event, state: T_State):
         if r <= p:  # 0.0114514 default
             repeat_list[1] = True
             await repeat.finish(msg)
+
+
+record = on_regex(r".", priority=20)
+
+
+@record.handle()
+async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
+    if event.group_id != 879106299:
+        return
+    if event.user_id in [3419099188, 507985595]:
+        return
+    msg = event.get_message().extract_plain_text().strip()
+    if len(msg) == 0:
+        return
+    stop_msg_regex = r"(^今日舞萌$)|(^查歌)|(^分数线)|^([绿黄红紫白]?)id([0-9]+)$|(是什么歌$)|(^b50$)|(^成分查询)|(^小亮)"
+    if re.match(stop_msg_regex, msg):
+        return
+    # re_non_text = re.compile(r"\[(CQ.*)\] ")
+    # msg = re_non_text.sub("", msg)
+    write_path = f"{record_folder}{datetime.now(SH).strftime('%Y%m%d')}.txt"
+    mode = 'a' if os.path.exists(write_path) else 'w'
+    with open(write_path, mode) as f:
+        f.write(f"{msg}\n")
 
 
 status = on_command("status", permission=SUPERUSER | GROUP_ADMIN | GROUP_OWNER, block=True)

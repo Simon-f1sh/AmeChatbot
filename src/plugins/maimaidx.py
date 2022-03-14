@@ -121,7 +121,7 @@ inner_level = on_command('inner_level ', aliases={'base '})
 @inner_level.handle()
 async def _(bot: Bot, event: Event, state: T_State):
     argv = str(event.get_message()).strip().split(" ")
-    if len(argv) > 2 or len(argv) == 0:
+    if len(argv) > 2 or (len(argv) == 1 and len(argv[0]) == 0):
         await inner_level.finish("命令格式为\nbase <定数>\nbase <定数下限> <定数上限>")
         return
     if len(argv) == 1:

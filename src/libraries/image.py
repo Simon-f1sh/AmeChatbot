@@ -44,6 +44,11 @@ def text_to_image(text):
     return i
 
 
+def wc_to_image(wc):
+    matrix_rgb = wc.to_array()
+    return Image.fromarray(matrix_rgb)
+
+
 def image_to_base64(img, format='PNG'):
     output_buffer = BytesIO()
     img.save(output_buffer, format)
