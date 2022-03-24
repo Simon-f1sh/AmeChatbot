@@ -266,14 +266,14 @@ async def _(bot: Bot, event: GroupMessageEvent, state: dict):
     await food_stat.finish(result)
 
 
-translate = on_regex(r".+是(啥|什么)意思")
+translate = on_regex(r"[\s\S]+是(啥|什么)意思")
 
 
 @translate.handle()
 async def _(bot: Bot, event: GroupMessageEvent, state: dict):
-    regex = "(.+)是(啥|什么)意思"
+    regex = r"([\s\S]+)是(啥|什么)意思"
     text = re.match(regex, str(event.get_message())).group(1).strip()
-    if len(text) > 100:
+    if len(text) > 500:
         await translate.finish(MessageSegment.image(f"file:///{os.path.abspath(f'{poke_img_folder}waritodoudemoii.jpg')}"))
     else:
         await translate.finish(
