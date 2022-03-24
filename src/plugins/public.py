@@ -456,6 +456,25 @@ async def _(bot: Bot, event: Event, state: T_State):
     pass
 
 
+random_choice = on_command("帮我选", rule=to_me(), priority=5)
+
+
+@random_choice.handle()
+async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
+    argv = str(event.get_message()).strip().split(" ")
+    if len(argv) < 2:
+        await random_choice.finish("选项不足捏")
+        return
+    r = random.random()
+    p = 0.1919810
+    if r <= p:
+        await random_choice.finish(MessageSegment.image(f"file:///{os.path.abspath(f'{poke_img_folder}waritodoudemoii.jpg')}"))
+    else:
+        await random_choice.finish(
+            MessageSegment.reply(event.message_id)
+            + MessageSegment.text(f"建议选择“{random.choice(argv)}”"))
+
+
 random_person = on_regex("随个([男女]?)人", priority=1)
 
 
