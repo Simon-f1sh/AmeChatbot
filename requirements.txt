@@ -100,3 +100,4 @@ cos-python-sdk-v5
 qcloud-python-sts
 jieba==0.42.1
 wordcloud==1.8.1
+pydub==0.25.1

@@ -25,13 +25,7 @@ driver = get_driver()
 def _():
     logger.info("Load help text successfully")
     help_text: dict = get_driver().config.help_text
-    help_text['xuexi'] = ('查看日语相关功能', """19岁，是妹妹。
-可用命令如下：
-大佐测试/我想学日语/我要学日语    日语词汇测试
-错词表<页数>    查看错词表(页数不填默认第一页)
-复习    从错词表中抽词测试，仅在私聊可用
-不学了/结束    结束当前测试
-测试设置 启用/禁用    启用/禁用功能""")
+    help_text['xuexi'] = ('查看日语相关功能', "help_xuexi.txt")
 
 
 async def _quiz_status(bot: Bot, event: Event, state: dict) -> bool:

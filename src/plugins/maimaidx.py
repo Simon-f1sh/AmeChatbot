@@ -1,49 +1,45 @@
-import math
 from collections import defaultdict
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 
-from dotenv import load_dotenv
 from nonebot import on_command, on_message, on_notice, on_regex, get_driver, require, get_bots
 from nonebot.log import logger
 from nonebot.permission import Permission
+from nonebot.rule import to_me
 from nonebot.typing import T_State
 from nonebot.adapters import Event, Bot
 from nonebot.adapters.cqhttp import Message, MessageSegment, GroupMessageEvent, PrivateMessageEvent
+from nonebot.permission import SUPERUSER
+from nonebot.adapters.cqhttp.permission import GROUP_ADMIN, GROUP_OWNER
+from nonebot.exception import IgnoredException
+from nonebot.message import event_preprocessor
+
 from src.libraries.maimaidx_guess import GuessObject
-
-from qcloud_cos import CosConfig, CosS3Client
-from sts.sts import Sts
-
-from PIL import Image
 from src.libraries.image import image_to_base64, text_to_image
 from src.libraries.tool import hash
-from src.libraries.maimaidx_music import *
+from src.libraries.maimaidx_music import total_list, search_length, search_bpm, search_charter, search_artist, search_diff, search_pop_rank, Music, update_chart_stats_and_count_list
 from src.libraries.image import *
 from src.libraries.maimai_best_40 import generate, analyze
+from src.libraries.maimai_best_50 import generate50
 from src.libraries.maimai_records import get_records_by_level_or_ds
-import requests
-import json
+from src.libraries.CONST import record_folder, poke_img_folder, audio_folder, food_folder
+from src.libraries.qcloud import search_audio, download_music_and_to_clip
+
 import random
 import time
 import re
 import os
 import shelve
 import asyncio
-from urllib import parse
-
-# 配置腾讯api
-
-load_dotenv()
-secret_id = os.getenv('SECRET_ID')  # 替换为用户的 SecretId，请登录访问管理控制台进行查看和管理，https://console.cloud.tencent.com/cam/capi
-secret_key = os.getenv('SECRET_KEY')  # 替换为用户的 SecretKey，请登录访问管理控制台进行查看和管理，https://console.cloud.tencent.com/cam/capi
-region = 'ap-beijing'  # 替换为用户的 region，已创建桶归属的region可以在控制台查看，https://console.cloud.tencent.com/cos5/bucket
-bucket_name = "tpz-1254072339"
-config = CosConfig(Region=region, SecretId=secret_id, SecretKey=secret_key)
-client = CosS3Client(config)
 
 driver = get_driver()
 
 scheduler = require("nonebot_plugin_apscheduler").scheduler
+
+
+@event_preprocessor
+async def preprocessor(bot, event, state):
+    if hasattr(event, 'message_type') and event.message_type == "private" and event.sub_type != "friend":
+        raise IgnoredException("not reply group temp message")
 
 
 async def sandian():
@@ -56,26 +52,18 @@ async def sandian():
 def _():
     logger.info("Load help text successfully")
     help_text: dict = get_driver().config.help_text
-    help_text['mai'] = ('查看舞萌相关功能', """19岁，是妹妹。
-可用命令如下：
-今日运势 查看今天的舞萌运势
-XXXmaimaiXXX什么 随机一首歌
-随个[dx/标准][绿黄红紫白]<难度> 随机一首指定条件的乐曲
-search<乐曲标题的一部分> 查询符合条件的乐曲
-[绿黄红紫白]id <歌曲编号> 查询乐曲信息或谱面信息
-<歌曲别名>是啥歌 查询乐曲别名对应的乐曲
-base <定数>  查询定数对应的乐曲
-base <定数下限> <定数上限>
-line <难度+歌曲id> <分数线> 详情请输入“line 帮助”查看
-妹妹猜歌 猜歌游戏
-<随机数量>底分分析<查分器id> 通过b40情况推荐推分歌曲 <随机数量>和<查分器id>可不填
-妹妹唱歌 <歌曲id> 根据id点歌，不填写id时为随机点歌
-妹妹唱<歌曲名称/别名> 根据名称或别名点歌""")
+    help_text['mai'] = ('查看舞萌相关功能', "help_mai.txt")
     scheduler.add_job(
         sandian,
         trigger='cron',
         hour=15,
-        minute=0,
+        minute=0
+    )
+    scheduler.add_job(
+        update_chart_stats_and_count_list,
+        trigger='cron',
+        hour=0,
+        minute=0
     )
 
 
@@ -274,12 +262,117 @@ BREAK: {chart['notes'][4]}
                 {
                     "type": "text",
                     "data": {
-                        "text": f"艺术家: {music['basic_info']['artist']}\n分类: {music['basic_info']['genre']}\nBPM: {music['basic_info']['bpm']}\n版本: {music['basic_info']['from']}\n难度: {'/'.join(music['level'])}"
+                        "text": f"艺术家: {music['basic_info']['artist']}\n分类: {music['basic_info']['genre']}\nBPM: {music['basic_info']['bpm']}\n版本: {music['basic_info']['from']}\n难度: {'/'.join(music['level'])}\n定数: {'/'.join(map(str, music['ds']))}"
                     }
                 }
             ]))
-        except Exception:
+        except Exception as e:
+            print(e)
             await query_chart.send("未找到该乐曲")
+
+
+bpm_search = on_command("bpm", aliases={"BPM", "查bpm", "查BPM"}, rule=to_me())
+
+
+@bpm_search.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    bpm = str(event.get_message()).strip().split(" ")[0]
+    result = await search_bpm(bpm)
+    if result[0]:
+        await bpm_search.finish(
+            MessageSegment.image(f"base64://{str(image_to_base64(text_to_image(result[0])), encoding='utf-8')}"))
+    else:
+        await bpm_search.finish(result[1])
+
+
+artist_search = on_command('artist', aliases={"查曲师", "查艺术家", "查作者"}, rule=to_me())
+
+
+@artist_search.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    artist = str(event.get_message()).strip()
+    result = await search_artist(artist.lower())
+    if result[0]:
+        await artist_search.finish(
+            MessageSegment.image(f"base64://{str(image_to_base64(text_to_image(result[0])), encoding='utf-8')}"))
+    else:
+        await artist_search.finish(result[1])
+
+
+charter_search = on_command('charter', aliases={'查谱师', '查谱作者'}, rule=to_me())
+
+
+@charter_search.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    charter = str(event.get_message()).strip()
+    result = await search_charter(charter.lower())
+    if result[0]:
+        await charter_search.finish(
+            MessageSegment.image(f"base64://{str(image_to_base64(text_to_image(result[0])), encoding='utf-8')}"))
+    else:
+        await charter_search.finish(result[1])
+
+
+song_len = on_command('查长度', aliases={'歌曲长度'}, rule=to_me())
+
+
+@song_len.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    music_id = str(event.get_message()).strip().split(" ")[0]
+    state["music_id"] = music_id
+    asyncio.create_task(get_music_length(bot, event, state))
+
+
+async def get_music_length(bot, event: Event, state: T_State):
+    result = await search_length(state["music_id"])
+    await bot.send(event, result)
+
+
+diff_search = on_command("查难度", rule=to_me())
+
+
+@diff_search.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    regex = "([绿黄红紫白])(id)?( )*([0-9]+)"
+    res = re.match(regex, str(event.get_message()).strip())
+    if not res:
+        await diff_search.finish("输入有误，请检查语法")
+        return
+    diff_labels = ['绿', '黄', '红', '紫', '白']
+    diff_index = diff_labels.index(res.group(1))
+    result = await search_diff(diff_index, diff_labels, res.group(4))
+    await diff_search.send(result[0] if result[0] else result[1])
+
+
+pop_rank = on_regex(r"^(查热度)( )*([绿黄红紫白]?)(id)?( )*([0-9]+)$", rule=to_me())
+
+
+@pop_rank.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    regex = "(查热度)( )*([绿黄红紫白]?)(id)?( )*([0-9]+)"
+    diff_labels = ['绿', '黄', '红', '紫', '白']
+    diff_index = None
+    res = re.match(regex, str(event.get_message()))
+    try:
+        if res.group(3):
+            diff_index = diff_labels.index(res.group(3))
+        if res.group(4):
+            is_id = True
+            music_id_or_rank = res.group(6)
+        else:
+            is_id = False
+            music_id_or_rank = int(res.group(6))
+    except Exception as e:
+        print(e)
+        await pop_rank.finish("命令错误，请检查语法")
+        return
+
+    result = await search_pop_rank(diff_labels, diff_index, is_id, music_id_or_rank)
+
+    if result[0]:
+        await pop_rank.finish(result[0])
+    else:
+        await pop_rank.finish(result[1])
 
 
 wm_list = ['拼机', '推分', '越级', '下埋', '夜勤', '练底力', '练手法', '打旧框', '干饭', '抓绝赞', '收歌']
@@ -303,12 +396,13 @@ async def _(bot: Bot, event: Event, state: T_State):
             s += f'宜 {wm_list[i]}\n'
         elif wm_value[i] == 0:
             s += f'忌 {wm_list[i]}\n'
-    s += "tpz妹妹提醒您："  # 打机时不要大力拍打或滑动哦
+    s += "今天建议吃："  # 打机时不要大力拍打或滑动哦
     music = total_list[h2 % len(total_list)]
+    random.seed(h2)
     await jrwm.finish(Message([
                                   {"type": "text", "data": {"text": s}},
                                   {"type": "image", "data": {
-                                      "file": "file:///" + os.path.abspath("src/static/mai/pic/meimeinotice.jpg")}},
+                                      "file": "file:///" + os.path.abspath(f"{food_folder}{random.choice(os.listdir(food_folder))}")}},
                                   {"type": "text", "data": {"text": "\n今日推荐歌曲："}}
                               ] + song_txt(music)))
 
@@ -394,54 +488,91 @@ async def _(bot: Bot, event: Event, state: T_State):
     BREAK 50落(一共{brk}个)等价于 {(break_50_reduce / 100):.3f} 个 TAP GREAT(-{break_50_reduce / total_score * 100:.4f}%)''')
             if random.random() < 0.3:
                 await query_chart.send(Message([{"type": "image", "data": {
-                    "file": "file:///" + os.path.abspath("src/static/mai/pic/meimeiyiban.jpg")}}]))
+                    "file": "file:///" + os.path.abspath(f"{poke_img_folder}saikouka.png")}}]))
         except Exception as e:
             print(e)
             await query_chart.send("格式错误或未找到乐曲，输入“line 帮助”以查看帮助信息")
 
 
-best_40_pic_old = on_command('b40')
-
-
-@best_40_pic_old.handle()
-async def _(bot: Bot, event: Event, state: T_State):
-    await best_40_pic_old.send(Message([
-        {
-            "type": "text",
-            "data": {
-                "text": f"是\"妹妹b40\"谢谢"
-            }
-        },
-        {
-            "type": "image",
-            "data": {
-                "file": "file:///" + os.path.abspath("src/static/mai/pic/meimeib40.jpg")
-            }
-        }
-    ]))
-
-
-best_40_pic = on_command('妹妹b40')
+best_40_pic = on_command('b40')
 
 
 @best_40_pic.handle()
 async def _(bot: Bot, event: Event, state: T_State):
-    username = str(event.get_message()).strip()
-    # print(event.message_id)
-    if username == "":
-        payload = {'qq': str(event.get_user_id())}
-    else:
-        payload = {'username': username}
-    img, success = await generate(payload)
-    if success == 400:
-        await best_40_pic.send(
-            "未找到此玩家，请确保此玩家的用户名和查分器中的用户名相同。\n查分器绑定教程：https://www.diving-fish.com/maimaidx/prober_guide")
-    elif success == 403:
-        await best_40_pic.send("该用户禁止了其他人获取数据。")
+    if event.is_tome():
+        username = str(event.get_message()).strip()
+        # print(event.message_id)
+        if username == "":
+            payload = {'qq': str(event.get_user_id())}
+        else:
+            payload = {'username': username}
+        img, success = await generate(payload)
+        if success == 400:
+            await best_40_pic.send(
+                "未找到此玩家，请确保此玩家的用户名和查分器中的用户名相同。\n查分器绑定教程：https://www.diving-fish.com/maimaidx/prober_guide")
+        elif success == 403:
+            await best_40_pic.send("该用户禁止了其他人获取数据。")
+        else:
+            await best_40_pic.send(Message([
+                MessageSegment.reply(event.message_id),
+                MessageSegment.image(f"base64://{str(image_to_base64(img), encoding='utf-8')}")
+            ]))
     else:
         await best_40_pic.send(Message([
-            MessageSegment.reply(event.message_id),
-            MessageSegment.image(f"base64://{str(image_to_base64(img), encoding='utf-8')}")
+            {
+                "type": "text",
+                "data": {
+                    "text": f"是\"糖糖b40\"谢谢"
+                }
+            },
+            {
+                "type": "image",
+                "data": {
+                    "file": "file:///" + os.path.abspath("src/static/mai/pic/yyln.jpg")
+                }
+            }
+        ]))
+
+
+best_50_pic = on_command('b50')
+
+
+@best_50_pic.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    if event.is_tome():
+        username = str(event.get_message()).strip()
+        if username == "":
+            payload = {'qq': str(event.get_user_id()),'b50':True}
+        else:
+            payload = {'username': username,'b50':  True}
+        img, success = await generate50(payload)
+        if success == 400:
+            await best_50_pic.send("未找到此玩家，请确保此玩家的用户名和查分器中的用户名相同。")
+        elif success == 403:
+            await best_50_pic.send("该用户禁止了其他人获取数据。")
+        else:
+            await best_50_pic.send(Message([
+                {
+                    "type": "image",
+                    "data": {
+                        "file": f"base64://{str(image_to_base64(img), encoding='utf-8')}"
+                    }
+                }
+            ]))
+    else:
+        await best_40_pic.send(Message([
+            {
+                "type": "text",
+                "data": {
+                    "text": f"是\"糖糖b50\"谢谢"
+                }
+            },
+            {
+                "type": "image",
+                "data": {
+                    "file": "file:///" + os.path.abspath("src/static/mai/pic/yyln.jpg")
+                }
+            }
         ]))
 
 
@@ -519,10 +650,30 @@ async def _(bot: Bot, event: Event):
 
 guess_dict: Dict[Tuple[str, str], GuessObject] = {}
 guess_cd_dict: Dict[Tuple[str, str], float] = {}
-guess_music = on_command('妹妹猜歌', priority=0)
+guess_music = on_regex(r"^(文字|语音)?(猜歌)$", priority=0)
 
 
-async def guess_music_loop(bot: Bot, event: Event, state: T_State):
+async def audio_guess_music_loop(bot, event: Event, state: T_State):
+    guess: GuessObject = state["guess_object"]
+    guess.clip_url, guess.temp_path = await download_music_and_to_clip(guess.music['id'])
+    if guess.is_end:
+        if os.path.exists(guess.temp_path):
+            os.remove(guess.temp_path)
+        return
+    asyncio.create_task(bot.send(event, MessageSegment.record(guess.clip_url)))
+    await asyncio.sleep(30)
+    if guess.is_end:
+        return
+    asyncio.create_task(bot.send(event, Message(
+        [MessageSegment.text(f"没有人猜对捏。\n答案是：{guess.music['id']}. {guess.music['title']}\n"),
+         MessageSegment.image(f"https://www.diving-fish.com/covers/{guess.music['id']}.jpg")])))
+    if guess.temp_path:
+        if os.path.exists(guess.temp_path):
+            os.remove(guess.temp_path)
+    del guess_dict[state["k"]]
+
+
+async def text_guess_music_loop(bot: Bot, event: Event, state: T_State):
     await asyncio.sleep(10)
     guess: GuessObject = state["guess_object"]
     if guess.is_end:
@@ -545,7 +696,7 @@ async def guess_music_loop(bot: Bot, event: Event, state: T_State):
         asyncio.create_task(give_answer(bot, event, state))
         return
     state["cycle"] += 1
-    asyncio.create_task(guess_music_loop(bot, event, state))
+    asyncio.create_task(text_guess_music_loop(bot, event, state))
 
 
 async def give_answer(bot: Bot, event: Event, state: T_State):
@@ -589,15 +740,38 @@ async def _(bot: Bot, event: Event, state: T_State):
     #     if k in guess_cd_dict and time.time() < guess_cd_dict[k]:
     #         await guess_music.finish(f"已经猜过啦，下次猜歌会在 {time.strftime('%H:%M', time.localtime(guess_cd_dict[k]))} 可用噢")
     #         return
-    guess = GuessObject()
+    regex = r"(文字|语音)?(猜歌)"
+    res = re.match(regex, str(event.get_message()).lower())
+    try:
+        if res.group(1):
+            if res.group(1) == "文字":
+                is_text = True
+            else:
+                is_text = False
+        else:
+            is_text = random.choice([True, False])
+    except Exception as e:
+        print("Exception" + str(e))
+        await guess_music.finish("命令错误，请检查语法")
+        return
+    guess = GuessObject(is_text)
     guess_dict[k] = guess
     state["k"] = k
     state["guess_object"] = guess
-    state["cycle"] = 0
     guess_cd_dict[k] = time.time() + 600
-    await guess_music.send(
-        "我将从热门乐曲中选择一首歌，并描述它的一些特征，请输入歌曲的【id】、【歌曲标题】或【歌曲标题中 5 个以上连续的字符】进行猜歌（DX乐谱和标准乐谱视为两首歌）。猜歌时查歌等其他命令依然可用。\n警告：这个命令可能会很刷屏，管理员可以使用【猜歌设置】指令进行设置。")
-    asyncio.create_task(guess_music_loop(bot, event, state))
+    if is_text:
+        state["cycle"] = 0
+        await guess_music.send(
+            "我将从乌蒙地插2021的全部歌曲中选择一首歌，并描述它的一些特征，"
+            "请输入歌曲的【id】、【歌曲标题】或【歌曲标题中 5 个以上连续的字符】进行猜歌（DX乐谱和标准乐谱视为两首歌）。"
+            "猜歌时查歌等其他命令依然可用。\n警告：这个命令可能会很刷屏，管理员可以使用【猜歌设置】指令进行设置。")
+        asyncio.create_task(text_guess_music_loop(bot, event, state))
+    else:
+        await guess_music.send(
+            "我将从乌蒙地插2021的全部歌曲中随机选择一首歌，从中截取5秒的音频。\n"
+            "请输入歌曲的【id】、【歌曲标题】或【歌曲标题中 5 个以上连续的字符】进行猜歌。"
+            "\n时间限制为30秒。猜歌时查歌等其他命令依然可用。\n警告：这个命令可能会很刷屏，管理员可以使用【猜歌设置】指令进行设置。")
+        asyncio.create_task(audio_guess_music_loop(bot, event, state))
 
 
 guess_music_solve = on_message(priority=20)
@@ -615,6 +789,9 @@ async def _(bot: Bot, event: Event, state: T_State):
     if ans == guess.music['id'] or (ans.lower() == guess.music['title'].lower()) or (
             len(ans) >= 5 and ans.lower() in guess.music['title'].lower()):
         guess.is_end = True
+        if guess.temp_path:
+            if os.path.exists(guess.temp_path):
+                os.remove(guess.temp_path)
         del guess_dict[k]
         group_id = event.__getattribute__('group_id')
         sender_id = event.get_user_id()
@@ -633,6 +810,24 @@ async def _(bot: Bot, event: Event, state: T_State):
             MessageSegment.text("猜对了，答案是：" + f"{guess.music['id']}. {guess.music['title']}\n"),
             MessageSegment.image(f"https://www.diving-fish.com/covers/{guess.music['id']}.jpg")
         ]))
+
+
+guess_music_cancel = on_regex(r"^(不猜了)$", permission=SUPERUSER | GROUP_ADMIN | GROUP_OWNER)
+
+
+@guess_music_cancel.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    mt = event.message_type
+    k = (mt, event.user_id if mt == "private" else event.group_id)
+    if k not in guess_dict:
+        return
+    guess = guess_dict[k]
+    guess.is_end = True
+    if guess.temp_path:
+        if os.path.exists(guess.temp_path):
+            os.remove(guess.temp_path)
+    del guess_dict[k]
+    await guess_music_cancel.finish("这个阿P就是逊啦")
 
 
 async def send_guess_stat(group_id: int, bot: Bot):
@@ -674,7 +869,7 @@ async def send_guess_stat(group_id: int, bot: Bot):
         ]))
 
 
-guess_stat = on_command("本群猜歌情况")
+guess_stat = on_command("本群猜歌情况", rule=to_me())
 
 
 @guess_stat.handle()
@@ -683,12 +878,12 @@ async def _(bot: Bot, event: Event, state: T_State):
     await send_guess_stat(group_id, bot)
 
 
-sing = on_regex(r"^(妹妹唱歌)( )?(id)?( )?([0-9]{1,5})?$", block=True)
+sing = on_regex(r"^(唱歌)( )?(id)?( )?([0-9]{1,5})?$", rule=to_me(), block=True)
 
 
 @sing.handle()
 async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
-    regex = r"^(妹妹唱歌)( )?(id)?( )?([0-9]{1,5})?$"
+    regex = r"^(唱歌)( )?(id)?( )?([0-9]{1,5})?$"
     res = re.match(regex, str(event.get_message()))
     try:
         if res.group(5) is not None:
@@ -705,12 +900,12 @@ async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
     await sing.finish(response)
 
 
-sing_aliases = on_regex(r"^妹妹唱(.+)$", priority=2, block=True)
+sing_aliases = on_regex(r"^唱(.+)$", rule=to_me(), priority=2, block=True)
 
 
 @sing_aliases.handle()
 async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
-    regex = "妹妹唱(.+)"
+    regex = "唱(.+)"
     name = re.match(regex, str(event.get_message())).groups()[0].strip().lower()
     music = total_list.by_title(name)
     if music is None:
@@ -724,62 +919,6 @@ async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
     else:
         response = await search_audio(music)
         await sing_aliases.finish(response)
-
-
-async def search_audio(music: Music):
-    music_id = music['id']
-    sound_id = music_id[1:5].lstrip("0") if len(music_id) == 5 else music_id
-    print(sound_id)
-    tmp_secret_id, tmp_secret_key, temp_token = await create_temp_token(sound_id)
-    key = f"sound/{sound_id}.mp3"
-    tmp_config = CosConfig(Region=region, SecretId=tmp_secret_id, SecretKey=tmp_secret_key)
-    tmp_client = CosS3Client(tmp_config)
-    if not client.object_exists(Bucket=bucket_name, Key=key):
-        return "未找到该歌曲"
-    response = parse.unquote(
-        tmp_client.get_presigned_url(Bucket=bucket_name, Key=key, Params={"x-cos-security-token": temp_token},
-                                     Method='GET', Expired=600))
-    print(response)
-    return MessageSegment.music_custom("",
-                                       response,
-                                       f"{music_id}. {music['title']}",
-                                       music['basic_info']['artist'],
-                                       f"https://www.diving-fish.com/covers/{music_id}.jpg")
-
-
-async def create_temp_token(sound_id: str):
-    req_config = {
-        'url': 'https://sts.tencentcloudapi.com/',
-        # 域名，非必须，默认为 sts.tencentcloudapi.com
-        'domain': 'sts.tencentcloudapi.com',
-        # 临时密钥有效时长，单位是秒
-        'duration_seconds': 600,
-        'secret_id': secret_id,
-        # 固定密钥
-        'secret_key': secret_key,
-        # 换成你的 bucket
-        'bucket': bucket_name,
-        # 换成 bucket 所在地区
-        'region': region,
-        # 这里改成允许的路径前缀，可以根据自己网站的用户登录态判断允许上传的具体路径
-        # 例子： a.jpg 或者 a/* 或者 * (使用通配符*存在重大安全风险, 请谨慎评估使用)
-        'allow_prefix': f'sound/{sound_id}.mp3',
-        # 密钥的权限列表。简单上传和分片需要以下的权限，其他权限列表请看 https://cloud.tencent.com/document/product/436/31923
-        'allow_actions': [
-            # 下载操作
-            "name/cos:GetObject"
-        ],
-
-    }
-
-    try:
-        sts = Sts(req_config)
-        response = sts.get_credential()
-        return response["credentials"]["tmpSecretId"], \
-               response["credentials"]["tmpSecretKey"], \
-               response["credentials"]["sessionToken"]
-    except Exception as e:
-        print(e)
 
 
 records_by_level = on_regex(r"^(([0-9]+\+?)|([0-9]+\.[0-9]{1}))(分数列表)([0-9]+)?$", block=True)
@@ -798,7 +937,7 @@ async def _(bot: Bot, event: Event, state: T_State):
             ds = res.group(3)
         else:
             await records_by_level.send(
-                MessageSegment.image("file:///" + os.path.abspath("src/static/mai/pic/meimeib40.jpg")))
+                MessageSegment.image("file:///" + os.path.abspath("src/static/mai/pic/xiaoshi.jpg")))
             return
         if res.group(5):
             page = int(res.group(5))

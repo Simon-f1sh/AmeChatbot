@@ -7,6 +7,8 @@ from nonebot.permission import SUPERUSER
 from nonebot.rule import to_me
 from nonebot.typing import T_State
 from nonebot.adapters.cqhttp import Message, Event, Bot, MessageSegment, GROUP_ADMIN, GROUP_OWNER, GroupMessageEvent
+from nonebot.exception import IgnoredException
+from nonebot.message import event_preprocessor
 
 from collections import defaultdict
 
@@ -22,6 +24,12 @@ otw_counter = 0
 curr_time = ""
 otw_dict = defaultdict(int)
 open_time = datetime.now(SH).replace(hour=7, minute=0, second=0, microsecond=0)
+
+
+@event_preprocessor
+async def preprocessor(bot, event, state):
+    if hasattr(event, 'message_type') and event.message_type == "private" and event.sub_type != "friend":
+        raise IgnoredException("not reply group temp message")
 
 
 async def clear_counter():
@@ -43,16 +51,7 @@ def _():
     logger.info(open_time)
     logger.info("Load help text successfully")
     help_text: dict = get_driver().config.help_text
-    help_text['xinji'] = ('查看新几相关功能', """19岁，是妹妹。
-可用命令如下：
-新几    查询新奥目前人数和路上人数
-@tpz妹妹 新<人数>    更新新奥目前人数
-@tpz妹妹 新[+/-]<人数>    通过加减方式更新人数
-@tpz妹妹 路上    将自己的状态设置为“路上”并加入路上人数计数
-@tpz妹妹 路上<人数>    组团上路（？
-@tpz妹妹 不出了    状态为“路上”才可以使用，鸽了（
-@tpz妹妹 到达    状态为“路上”才可以使用，解除“路上”状态并自动更新新奥人数
-@tpz妹妹 路上有谁    字面意思""")
+    help_text['xinji'] = ('查看新几相关功能', "help_xinji.txt")
     scheduler.add_job(
         clear_counter,
         trigger='cron',
@@ -206,7 +205,7 @@ async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
         await otw.send("收到，现在路上" + str(otw_counter) + "人")
 
 
-arrive = on_regex(r"^到达$", rule=to_me(), block=True)
+arrive = on_regex(r"^(到达)|(我tm莱纳)$", rule=to_me(), block=True)
 
 
 @arrive.handle()

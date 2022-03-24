@@ -1,10 +1,18 @@
 from nonebot import on_command, on_message, on_notice
 from nonebot.typing import T_State
 from nonebot.adapters import Event, Bot
+from nonebot.exception import IgnoredException
+from nonebot.message import event_preprocessor
 
 
 encode_list = ['歪', '比', '巴', '卜']
 decode_map = {'歪': 0, '比': 1, '巴': 2, '卜': 3}
+
+
+@event_preprocessor
+async def preprocessor(bot, event, state):
+    if hasattr(event, 'message_type') and event.message_type == "private" and event.sub_type != "friend":
+        raise IgnoredException("not reply group temp message")
 
 
 def byte2str(b):

@@ -57,6 +57,10 @@ def image_to_base64(img, format='PNG'):
     return base64_str
 
 
+def bytes_to_base64(byte_data: bytes):
+    return base64.b64encode(byte_data)
+
+
 async def get_jlpx(jl, px, bottom):
     data = {
         'id': jl,
