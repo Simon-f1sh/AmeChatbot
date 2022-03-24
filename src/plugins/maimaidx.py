@@ -447,8 +447,11 @@ async def _(bot: Bot, event: Event, state: T_State):
         music = total_list.by_title(result_set[0])
         await find_song.finish(Message([{"type": "text", "data": {"text": "您要找的是不是"}}] + song_txt(music)))
     else:
-        s = '\n'.join(result_set)
-        await find_song.finish(f"您要找的可能是以下歌曲中的其中一首：\n{s}")
+        response = "您要找的可能是以下歌曲中的其中一首："
+        for result in result_set:
+            music = total_list.by_title(result)
+            response += f"\n{music.id}. {music.title}"
+        await find_song.finish(response)
 
 
 query_score = on_command('line')

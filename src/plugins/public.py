@@ -25,6 +25,7 @@ from src.libraries.image import image_to_base64, path, draw_text, get_jlpx, text
 from src.libraries.word_cloud import fetch_records, wordcloud_generate
 from src.libraries.CONST import record_folder, poke_img_folder, audio_folder, general_sticker_folder, ongeki_sticker_folder, food_folder, help_folder
 from src.libraries.tool import stat
+from src.libraries.baidu_translate import translate_to_zh
 
 import time
 from datetime import datetime, timedelta
@@ -263,6 +264,21 @@ food_stat = on_command('本群吃饭情况', rule=to_me())
 async def _(bot: Bot, event: GroupMessageEvent, state: dict):
     result = await stat(bot, event.group_id, "src/static/food.db", '吃饭', '顿')
     await food_stat.finish(result)
+
+
+translate = on_regex(r".+是(啥|什么)意思")
+
+
+@translate.handle()
+async def _(bot: Bot, event: GroupMessageEvent, state: dict):
+    regex = "(.+)是(啥|什么)意思"
+    text = re.match(regex, str(event.get_message())).group(1).strip()
+    if len(text) > 100:
+        await translate.finish(MessageSegment.image(f"file:///{os.path.abspath(f'{poke_img_folder}waritodoudemoii.jpg')}"))
+    else:
+        await translate.finish(
+            MessageSegment.reply(event.message_id)
+            + MessageSegment.text(translate_to_zh(text)))
 
 
 async def _group_poke(bot: Bot, event: Event, state: dict) -> bool:
