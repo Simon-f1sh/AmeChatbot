@@ -10,7 +10,7 @@ from sts.sts import Sts
 from nonebot.adapters.cqhttp import MessageSegment
 from typing import Dict
 
-from .CONST import tmp_folder
+from .CONST import mai_tmp_folder
 
 # 配置腾讯api
 
@@ -27,7 +27,7 @@ async def download_music(music_id: str):
     song_id = music_id[1:5].lstrip("0") if len(music_id) == 5 else music_id
 
     file_name = f"{song_id}.mp3"
-    file_path = f'{tmp_folder}{file_name}'
+    file_path = f'{mai_tmp_folder}{file_name}'
     if not os.path.exists(file_path):
         response = client.download_file(
             Bucket=bucket_name,
@@ -53,7 +53,7 @@ async def music_to_clip(music_path: str):
 
     string_set = string.ascii_letters + string.digits
     random_name = "".join(random.sample(string_set, 8)) + ".mp3"
-    temp_path = f"{tmp_folder}{random_name}"
+    temp_path = f"{mai_tmp_folder}{random_name}"
     music_clip.export(temp_path)
     return f"file:///{os.path.abspath(temp_path)}", temp_path
 

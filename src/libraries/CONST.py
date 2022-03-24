@@ -21,7 +21,7 @@ CQMsg={'face':'[CQ:face,id={}]',
 #           }
 
 static_folder = "src/static/"
-tmp_folder = "src/static/tmp/"
+mai_tmp_folder = "src/static/mai/tmp/"
 record_folder = "src/static/record/"
 poke_img_folder = "src/static/mai/poke/img/"
 audio_folder = "src/static/audio/"

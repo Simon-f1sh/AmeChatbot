@@ -144,3 +144,4 @@ src/static/poke.db.*
 /src/static/food.db.dat
 /src/static/food.db.dir
 /src/static/mai/sound/
+/src/static/mai/tmp/

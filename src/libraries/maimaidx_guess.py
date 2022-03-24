@@ -68,7 +68,6 @@ class GuessObject:
         else:
             music_id = self.music['id']
             self.music['id'] = music_id[1:5].lstrip("0") if len(music_id) == 5 and music_id.startswith("10") else music_id
-            print(f"\n\n\n后门\n{self.music['id']}\n\n\n")
         self.clip_url = None
         self.temp_path = None
         self.is_end = False

@@ -1,3 +1,4 @@
+import shutil
 from collections import defaultdict
 from typing import List, Dict, Any, Tuple
 
@@ -21,7 +22,7 @@ from src.libraries.image import *
 from src.libraries.maimai_best_40 import generate, analyze
 from src.libraries.maimai_best_50 import generate50
 from src.libraries.maimai_records import get_records_by_level_or_ds
-from src.libraries.CONST import record_folder, poke_img_folder, audio_folder, food_folder
+from src.libraries.CONST import record_folder, poke_img_folder, audio_folder, food_folder, mai_tmp_folder
 from src.libraries.qcloud import search_audio, download_music_and_to_clip
 
 import random
@@ -34,6 +35,13 @@ import asyncio
 driver = get_driver()
 
 scheduler = require("nonebot_plugin_apscheduler").scheduler
+
+
+if os.path.exists(mai_tmp_folder):
+    # Clean the temp files and recreate the folder
+    shutil.rmtree(mai_tmp_folder)
+os.makedirs(mai_tmp_folder)
+print("The mai temp folder is created!")
 
 
 @event_preprocessor
@@ -65,6 +73,13 @@ def _():
         hour=0,
         minute=0
     )
+
+
+@driver.on_bot_connect
+async def _(bot: Bot):
+    groups = await bot.get_group_list()
+    for group in groups:
+        await preload_audio_guess(group['group_id'])
 
 
 def song_txt(music: Music):
@@ -651,15 +666,17 @@ async def _(bot: Bot, event: Event):
 guess_dict: Dict[Tuple[str, str], GuessObject] = {}
 guess_cd_dict: Dict[Tuple[str, str], float] = {}
 guess_music = on_regex(r"^(文字|语音)?(猜歌)$", priority=0)
+preload_audio_guess_dict: Dict[str, GuessObject] = {}
+
+
+async def preload_audio_guess(group_id: int):
+    guess = GuessObject(False)
+    preload_audio_guess_dict[str(group_id)] = guess
+    guess.clip_url, guess.temp_path = await download_music_and_to_clip(guess.music['id'])
 
 
 async def audio_guess_music_loop(bot, event: Event, state: T_State):
     guess: GuessObject = state["guess_object"]
-    guess.clip_url, guess.temp_path = await download_music_and_to_clip(guess.music['id'])
-    if guess.is_end:
-        if os.path.exists(guess.temp_path):
-            os.remove(guess.temp_path)
-        return
     asyncio.create_task(bot.send(event, MessageSegment.record(guess.clip_url)))
     await asyncio.sleep(30)
     if guess.is_end:
@@ -711,9 +728,9 @@ async def give_answer(bot: Bot, event: Event, state: T_State):
 
 
 @guess_music.handle()
-async def _(bot: Bot, event: Event, state: T_State):
-    mt = event.message_type
-    k = (mt, event.user_id if mt == "private" else event.group_id)
+async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
+    mt = str(event.message_type)
+    k = (mt, str(event.user_id) if mt == "private" else str(event.group_id))
     if mt == "group":
         gid = event.group_id
         db = get_driver().config.db
@@ -754,7 +771,10 @@ async def _(bot: Bot, event: Event, state: T_State):
         print("Exception" + str(e))
         await guess_music.finish("命令错误，请检查语法")
         return
-    guess = GuessObject(is_text)
+    if is_text:
+        guess = GuessObject(is_text)
+    else:
+        guess = preload_audio_guess_dict[str(event.group_id)]
     guess_dict[k] = guess
     state["k"] = k
     state["guess_object"] = guess
@@ -772,15 +792,16 @@ async def _(bot: Bot, event: Event, state: T_State):
             "请输入歌曲的【id】、【歌曲标题】或【歌曲标题中 5 个以上连续的字符】进行猜歌。"
             "\n时间限制为30秒。猜歌时查歌等其他命令依然可用。\n警告：这个命令可能会很刷屏，管理员可以使用【猜歌设置】指令进行设置。")
         asyncio.create_task(audio_guess_music_loop(bot, event, state))
+        asyncio.create_task(preload_audio_guess(event.group_id))
 
 
 guess_music_solve = on_message(priority=20)
 
 
 @guess_music_solve.handle()
-async def _(bot: Bot, event: Event, state: T_State):
-    mt = event.message_type
-    k = (mt, event.user_id if mt == "private" else event.group_id)
+async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
+    mt = str(event.message_type)
+    k = (mt, str(event.user_id) if mt == "private" else str(event.group_id))
     if k not in guess_dict:
         return
     ans = str(event.get_message())
@@ -816,9 +837,9 @@ guess_music_cancel = on_regex(r"^(不猜了)$", permission=SUPERUSER | GROUP_ADM
 
 
 @guess_music_cancel.handle()
-async def _(bot: Bot, event: Event, state: T_State):
-    mt = event.message_type
-    k = (mt, event.user_id if mt == "private" else event.group_id)
+async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
+    mt = str(event.message_type)
+    k = (mt, str(event.user_id) if mt == "private" else str(event.group_id))
     if k not in guess_dict:
         return
     guess = guess_dict[k]
@@ -873,7 +894,7 @@ guess_stat = on_command("本群猜歌情况", rule=to_me())
 
 
 @guess_stat.handle()
-async def _(bot: Bot, event: Event, state: T_State):
+async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
     group_id = event.group_id
     await send_guess_stat(group_id, bot)
 
