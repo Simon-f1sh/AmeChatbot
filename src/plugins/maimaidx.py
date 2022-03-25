@@ -680,7 +680,7 @@ async def preload_audio_guess(group_id: int):
 
 async def audio_guess_music_loop(bot, event: Event, state: T_State):
     guess: GuessObject = state["guess_object"]
-    asyncio.create_task(bot.send(event, MessageSegment.record(guess.clip_url)))
+    await bot.send(event, MessageSegment.record(guess.clip_url))
     await asyncio.sleep(30)
     if guess.is_end:
         return
