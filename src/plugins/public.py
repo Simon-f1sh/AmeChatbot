@@ -604,18 +604,23 @@ async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
         return
     if event.user_id in [3419099188, 507985595, 848581150]:
         return
-    msg = event.get_message().extract_plain_text().strip()
-    if len(msg) == 0:
+    msgs = event.get_message()
+    result_list = []
+    for msg in msgs:
+        if msg.type == "text" and len(msg.data['text']) != 0:
+            result_list.append(f"{msg.data['text']}")
+    if len(result_list) == 0:
         return
-    stop_msg_regex = r"(^今日舞萌$)|(^查歌)|(^分数线)|^([绿黄红紫白]?)id([0-9]+)$|(是什么歌$)|(^b50$)|(^成分查询)|(^小亮)"
-    if re.match(stop_msg_regex, msg):
+    result = "\n".join(result_list)
+    stop_msg_regex = r"(^今日舞萌$)|(^查歌)|(^分数线)|^([绿黄红紫白]?)id([0-9]+)$|(是什么歌$)|(^b50$)|(^成分查询)|(^小亮)|(请使用最新版手机QQ体验新功能)"
+    if re.match(stop_msg_regex, result):
         return
     # re_non_text = re.compile(r"\[(CQ.*)\] ")
     # msg = re_non_text.sub("", msg)
     write_path = f"{record_folder}{datetime.now(SH).strftime('%Y%m%d')}.txt"
     mode = 'a' if os.path.exists(write_path) else 'w'
     with open(write_path, mode) as f:
-        f.write(f"{msg}\n")
+        f.write(f"{result}\n")
 
 
 status = on_command("status", permission=SUPERUSER | GROUP_ADMIN | GROUP_OWNER, block=True)
