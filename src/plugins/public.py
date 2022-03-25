@@ -207,7 +207,11 @@ async def _(bot: Bot, event: GroupMessageEvent, state: dict):
     for msg in msgs:
         if msg.type == "image":
             tmp_food_num += 1
-            urllib.request.urlretrieve(msg.data['url'], f"{food_folder}{tmp_food_num}.jpg")
+            response = urllib.request.urlopen(msg.data['url'])
+            image_type = response.headers['Content-Type'].split("/")[1]
+            output = open(f"{food_folder}{tmp_food_num}.{image_type}", "wb")
+            output.write(response.read())
+            output.close()
 
     if tmp_food_num != food_num:
         new_food_cnt = tmp_food_num - food_num

@@ -774,10 +774,14 @@ async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
         print("Exception" + str(e))
         await guess_music.finish("命令错误，请检查语法")
         return
+
     if is_text:
         guess = GuessObject(is_text)
     else:
-        guess = preload_audio_guess_dict[str(event.group_id)]
+        guess = preload_audio_guess_dict.get(str(event.group_id))
+        if not guess or not os.path.exists(guess.temp_path):
+            guess = GuessObject(is_text)
+            guess.clip_url, guess.temp_path = await download_music_and_to_clip(guess.music['id'])
     guess_dict[k] = guess
     state["k"] = k
     state["guess_object"] = guess
