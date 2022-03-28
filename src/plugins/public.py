@@ -15,7 +15,7 @@ import asyncio
 from nonebot import on_command, on_message, on_notice, require, get_driver, on_regex, get_bots, logger
 from nonebot.rule import to_me
 from nonebot.typing import T_State
-from nonebot.adapters.cqhttp import Message, Event, Bot, MessageEvent, GroupMessageEvent, MessageSegment
+from nonebot.adapters.cqhttp import Message, Event, Bot, MessageEvent, GroupMessageEvent, MessageSegment, ActionFailed
 from nonebot.permission import SUPERUSER
 from nonebot.adapters.cqhttp.permission import GROUP_ADMIN, GROUP_OWNER
 from nonebot.exception import IgnoredException
@@ -277,12 +277,16 @@ translate = on_regex(r"[\s\S]+是(啥|什么)意思")
 async def _(bot: Bot, event: GroupMessageEvent, state: dict):
     regex = r"([\s\S]+)是(啥|什么)意思"
     text = re.match(regex, str(event.get_message())).group(1).strip()
-    if len(text) > 500:
-        await translate.finish(MessageSegment.image(f"file:///{os.path.abspath(f'{poke_img_folder}waritodoudemoii.jpg')}"))
-    else:
-        await translate.finish(
-            MessageSegment.reply(event.message_id)
-            + MessageSegment.text(translate_to_zh(text)))
+    try:
+        if len(text) > 500:
+            await translate.finish(MessageSegment.image(f"file:///{os.path.abspath(f'{poke_img_folder}waritodoudemoii.jpg')}"))
+        else:
+            await translate.finish(
+                MessageSegment.reply(event.message_id)
+                + MessageSegment.text(translate_to_zh(text)))
+    except ActionFailed:
+        await translate.send("风控捏")
+        print(f"风控信息: {text}")
 
 
 async def _group_poke(bot: Bot, event: Event, state: dict) -> bool:
@@ -611,8 +615,8 @@ async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
             result_list.append(f"{msg.data['text']}")
     if len(result_list) == 0:
         return
-    result = "\n".join(result_list)
-    stop_msg_regex = r"(^今日舞萌$)|(^查歌)|(^分数线)|^([绿黄红紫白]?)id([0-9]+)$|(是什么歌$)|(^b50$)|(^成分查询)|(^小亮)|(请使用最新版手机QQ体验新功能)"
+    result = "\n".join(result_list).strip()
+    stop_msg_regex = r"(^今日舞萌$)|(^查歌)|(^分数线)|(^([绿黄红紫白]?)id([0-9]+)$)|(是什么歌$)|(^b50$)|(^成分查询)|(^小亮)|(.*请使用最新版手机QQ体验新功能)"
     if re.match(stop_msg_regex, result):
         return
     # re_non_text = re.compile(r"\[(CQ.*)\] ")

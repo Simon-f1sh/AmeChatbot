@@ -8,7 +8,7 @@ from nonebot.permission import Permission
 from nonebot.rule import to_me
 from nonebot.typing import T_State
 from nonebot.adapters import Event, Bot
-from nonebot.adapters.cqhttp import Message, MessageSegment, GroupMessageEvent, PrivateMessageEvent
+from nonebot.adapters.cqhttp import Message, MessageSegment, GroupMessageEvent, PrivateMessageEvent, ActionFailed
 from nonebot.permission import SUPERUSER
 from nonebot.adapters.cqhttp.permission import GROUP_ADMIN, GROUP_OWNER
 from nonebot.exception import IgnoredException
@@ -254,7 +254,11 @@ BREAK: {chart['notes'][4]}
                     }
                 }
             ]))
-        except Exception:
+        except ActionFailed:
+            await query_chart.send("风控捏")
+            print(f"风控信息: {music}")
+        except Exception as e:
+            print(e)
             await query_chart.send("未找到该谱面")
     else:
         name = groups[1]
@@ -281,6 +285,9 @@ BREAK: {chart['notes'][4]}
                     }
                 }
             ]))
+        except ActionFailed:
+            await query_chart.send("风控捏")
+            print(f"风控信息: {music}")
         except Exception as e:
             print(e)
             await query_chart.send("未找到该乐曲")
@@ -414,12 +421,17 @@ async def _(bot: Bot, event: Event, state: T_State):
     s += "今天建议吃："  # 打机时不要大力拍打或滑动哦
     music = total_list[h2 % len(total_list)]
     random.seed(h2)
-    await jrwm.finish(Message([
-                                  {"type": "text", "data": {"text": s}},
-                                  {"type": "image", "data": {
-                                      "file": "file:///" + os.path.abspath(f"{food_folder}{random.choice(os.listdir(food_folder))}")}},
-                                  {"type": "text", "data": {"text": "\n今日推荐歌曲："}}
-                              ] + song_txt(music)))
+    food_file = random.choice(os.listdir(food_folder))
+    try:
+        await jrwm.finish(Message([
+                                      {"type": "text", "data": {"text": s}},
+                                      {"type": "image", "data": {
+                                          "file": "file:///" + os.path.abspath(f"{food_folder}{food_file}")}},
+                                      {"type": "text", "data": {"text": "\n今日推荐歌曲："}}
+                                  ] + song_txt(music)))
+    except ActionFailed:
+        await jrwm.send("风控捏")
+        print(f"风控信息: {s}\n{food_folder}{food_file}\n{music}")
 
 
 music_aliases = defaultdict(list)
@@ -501,15 +513,20 @@ async def _(bot: Bot, event: Event, state: T_State):
             reduce = 101 - line
             if reduce <= 0 or reduce >= 101:
                 raise ValueError
-            await query_chart.send(f'''{music['title']} {level_labels2[level_index]}
+            await query_score.send(f'''{music['title']} {level_labels2[level_index]}
     分数线 {line}% 允许的最多 TAP GREAT 数量为 {(total_score * reduce / 10000):.2f}(每个-{10000 / total_score:.4f}%),
     BREAK 50落(一共{brk}个)等价于 {(break_50_reduce / 100):.3f} 个 TAP GREAT(-{break_50_reduce / total_score * 100:.4f}%)''')
             if random.random() < 0.3:
-                await query_chart.send(Message([{"type": "image", "data": {
-                    "file": "file:///" + os.path.abspath(f"{poke_img_folder}saikouka.png")}}]))
+                await query_score.send(Message([{"type": "image", "data": {
+                    "file": "file:///" + os.path.abspath(f"{poke_img_folder}saikouka.jpg")}}]))
+        except ActionFailed:
+            await query_score.send("风控捏")
+            print(f'''风控信息: {music['title']} {level_labels2[level_index]}
+    分数线 {line}% 允许的最多 TAP GREAT 数量为 {(total_score * reduce / 10000):.2f}(每个-{10000 / total_score:.4f}%),
+    BREAK 50落(一共{brk}个)等价于 {(break_50_reduce / 100):.3f} 个 TAP GREAT(-{break_50_reduce / total_score * 100:.4f}%)''')
         except Exception as e:
             print(e)
-            await query_chart.send("格式错误或未找到乐曲，输入“line 帮助”以查看帮助信息")
+            await query_score.send("格式错误或未找到乐曲，输入“line 帮助”以查看帮助信息")
 
 
 best_40_pic = on_command('b40')
