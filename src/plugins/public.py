@@ -23,7 +23,7 @@ from nonebot.message import event_preprocessor
 
 from src.libraries.image import image_to_base64, path, draw_text, get_jlpx, text_to_image, wc_to_image, bytes_to_base64
 from src.libraries.word_cloud import fetch_records, wordcloud_generate
-from src.libraries.CONST import record_folder, poke_img_folder, audio_folder, general_sticker_folder, ongeki_sticker_folder, food_folder, help_folder
+from src.libraries.CONST import CQMsg, record_folder, poke_img_folder, audio_folder, general_sticker_folder, ongeki_sticker_folder, food_folder, help_folder
 from src.libraries.tool import stat
 from src.libraries.baidu_translate import translate_to_zh
 
@@ -385,13 +385,9 @@ async def _(bot: Bot, event: Event, state: T_State):
               # '哼，哼，啊啊，啊啊啊，啊啊啊啊！',
               f'{name}，我真的好喜欢你啊！木啊！为了你，我要听猫中毒！'
               ])
-        # msg = CQMsg['tts'].format(talk)
-        await poke.send(Message([{
-            "type": "tts",
-            "data": {
-                "text": f"{talk}"
-            }
-        }]))
+        msg = CQMsg['tts'].format(talk)
+        print(msg)
+        await poke.send(Message(msg))
 
 
 async def send_poke_stat(group_id: int, bot: Bot):

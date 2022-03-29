@@ -76,7 +76,10 @@ async def get_jlpx(jl, px, bottom):
         'id11': 'jiqie.com_2',
         'id12': '241'
     }
-    async with aiohttp.request(method='POST', url="http://jiqie.zhenbi.com/e/re111.php", data=data) as resp:
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/99.0.4844.51 Safari/537.36"
+    }
+    async with aiohttp.request(method='POST', url="http://jiqie.zhenbi.com/e/re111.php", data=data, headers=headers) as resp:
         t = await resp.text()
         regex = '<img src="(.+)">'
         return re.match(regex, t).groups()[0]
