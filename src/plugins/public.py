@@ -23,7 +23,7 @@ from nonebot.message import event_preprocessor
 
 from src.libraries.image import image_to_base64, path, draw_text, get_jlpx, text_to_image, wc_to_image, bytes_to_base64
 from src.libraries.word_cloud import fetch_records, wordcloud_generate
-from src.libraries.CONST import CQMsg, record_folder, poke_img_folder, audio_folder, general_sticker_folder, ongeki_sticker_folder, food_folder, help_folder
+from src.libraries.CONST import CQMsg, record_folder, poke_img_folder, audio_folder, general_sticker_folder, sticker_folder_dict, sticker_hashtag_dict, food_folder, help_folder
 from src.libraries.tool import stat
 from src.libraries.baidu_translate import translate_to_zh
 
@@ -149,9 +149,18 @@ sticker = on_command("#")
 @sticker.handle()
 async def _(bot: Bot, event: GroupMessageEvent, state: dict):
     argv = str(event.get_message()).strip().split(" ")
-    if argv[0] == "ongeki":
-        img = random.choice(os.listdir(ongeki_sticker_folder))
-        await sticker.finish(MessageSegment.image("file:///" + os.path.abspath(f"{ongeki_sticker_folder}{img}")))
+    if argv[0] == "":
+        description = "可用标签如下："
+        for k, v in sticker_hashtag_dict.items():
+            description += f"\n{v} {k}"
+        msg = MessageSegment.image(f"base64://{str(image_to_base64(text_to_image(description)), encoding='utf-8')}")
+    elif sticker_folder_dict.get(argv[0]):
+        sticker_folder = sticker_folder_dict[argv[0]][1]
+        img = random.choice(os.listdir(sticker_folder))
+        msg = MessageSegment.image("file:///" + os.path.abspath(f"{sticker_folder}{img}"))
+    else:
+        msg = "找不到这个标签"
+    await sticker.finish(msg)
 
 
 question = on_regex(r".*？$", rule=to_me())
@@ -654,6 +663,15 @@ async def _(bot: Bot, event: Event, state: T_State):
     msg += f"DISK {disk}%\n"
     msg += ex_msg
     await status.finish(msg)
+
+
+# reset_cqhttp = on_command("ls", priority=0, rule=to_me(), permission=SUPERUSER, block=True)
+
+
+# @reset_cqhttp.handle()
+# async def _(bot: Bot, event: Event, state: dict):
+#     with os.popen("ls -lh") as f:
+# 	    await reset_cqhttp.send(f.read())
 
 
 reset = on_command("reset", priority=0, rule=to_me(), permission=SUPERUSER | GROUP_ADMIN | GROUP_OWNER, block=True)
