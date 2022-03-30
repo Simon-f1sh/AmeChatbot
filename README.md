@@ -37,4 +37,4 @@ Example:ws://127.0.0.1:5800/cqhttp/ws
 
 Q: 缺少secretId secretkey / heweather_apikey / DEVELOPER_TOKEN
 
-A：联系lez221获取
+A：联系Simon-f1sh获取
