@@ -42,16 +42,24 @@ cover_dir = 'src/static/mai/cover/'
 class GuessObject:
     def __init__(self, is_text: bool) -> None:
         self.music: Dict = total_list.random()
+        self.fake1: Dict = total_list.random()
+        self.fake2: Dict = total_list.random()
         if is_text:
             self.guess_options = [
-                f"的 Expert 难度是 {self.music['level'][2]}",
-                f"的 Master 难度是 {self.music['level'][3]}",
-                f"的分类是 {self.music['basic_info']['genre']}",
-                f"的版本是 {self.music['basic_info']['from']}",
-                f"的艺术家是 {self.music['basic_info']['artist']}",
+                random.choice([f"的 Expert 难度是 {self.music['level'][2]}",
+                               f"的 Expert 难度可能是 {random.choice([self.music['level'][2], self.fake1['level'][2], self.fake2['level'][2]])}"]),
+                random.choice([f"的 Master 难度是 {self.music['level'][3]}",
+                               f"的 Master 难度可能是 {random.choice([self.music['level'][3], self.fake1['level'][3], self.fake2['level'][3]])}"]),
+                random.choice([f"的分类是 {self.music['basic_info']['genre']}",
+                               f"的分类可能是 {random.choice([self.music['basic_info']['genre'], self.fake1['basic_info']['genre'], self.fake2['basic_info']['genre']])}"]),
+                random.choice([f"的版本是 {self.music['basic_info']['from']}",
+                               f"的版本可能是 {random.choice([self.music['basic_info']['from'], self.fake1['basic_info']['from'], self.fake2['basic_info']['from']])}"]),
+                random.choice([f"的艺术家是 {self.music['basic_info']['artist']}",
+                               f"的艺术家可能是 {random.choice([self.music['basic_info']['artist'], self.fake1['basic_info']['artist'], self.fake2['basic_info']['artist']])}"]),
                 # f"{'不' if self.music['type'] == 'SD' else ''}是 DX 谱面",
-                f"{'没有白谱' if len(self.music['ds']) == 4 else ('的 Re:Master 难度是 ' + str(self.music['level'][4]))}",
-                f"的 BPM 是 {self.music['basic_info']['bpm']}"
+                random.choice([f"的 BPM 是 {self.music['basic_info']['bpm']}",
+                               f"的 BPM 可能是 {random.choice([self.music['basic_info']['bpm'], self.fake1['basic_info']['bpm'], self.fake2['basic_info']['bpm']])}"]),
+                f"{'没有白谱' if len(self.music['ds']) == 4 else ('的 Re:Master 难度是 ' + str(self.music['level'][4]))}"
             ]
             self.guess_options = random.sample(self.guess_options, 6)
             pngPath = cover_dir + f"{int(self.music['id'])}.jpg"

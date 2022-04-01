@@ -22,7 +22,7 @@ from src.libraries.image import *
 from src.libraries.maimai_best_40 import generate, analyze
 from src.libraries.maimai_best_50 import generate50
 from src.libraries.maimai_records import get_records_by_level_or_ds
-from src.libraries.CONST import record_folder, poke_img_folder, audio_folder, food_folder, mai_tmp_folder
+from src.libraries.CONST import record_folder, poke_img_folder, audio_folder, food_folder, mai_tmp_folder, mai_fake_folder
 from src.libraries.qcloud import search_audio, download_music_and_to_clip
 
 import random
@@ -697,8 +697,18 @@ async def preload_audio_guess(group_id: int):
 
 async def audio_guess_music_loop(bot, event: Event, state: T_State):
     guess: GuessObject = state["guess_object"]
-    await bot.send(event, MessageSegment.record(guess.clip_url))
-    await asyncio.sleep(30)
+    msg_list = [
+        MessageSegment.record(guess.clip_url),
+        MessageSegment.record(
+            f"file:///{os.path.abspath(f'{mai_fake_folder}{random.choice(os.listdir(mai_fake_folder))}')}"),
+        MessageSegment.record(
+            f"file:///{os.path.abspath(f'{mai_fake_folder}{random.choice(os.listdir(mai_fake_folder))}')}")
+    ]
+    random.shuffle(msg_list)
+    await bot.send(event, msg_list[0])
+    await bot.send(event, msg_list[1])
+    await bot.send(event, msg_list[2])
+    await asyncio.sleep(60)
     if guess.is_end:
         return
     asyncio.create_task(bot.send(event, Message(
@@ -812,9 +822,9 @@ async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
         asyncio.create_task(text_guess_music_loop(bot, event, state))
     else:
         await guess_music.send(
-            "我将从乌蒙地插2021的全部歌曲中随机选择一首歌，从中截取5秒的音频。\n"
+            "我将从乌蒙地插2021的全部歌曲中随机选择三首歌（其中两首为假），从中各截取5秒的音频。\n"
             "请输入歌曲的【id】、【歌曲标题】或【歌曲标题中 5 个以上连续的字符】进行猜歌。"
-            "\n时间限制为30秒。猜歌时查歌等其他命令依然可用。\n警告：这个命令可能会很刷屏，管理员可以使用【猜歌设置】指令进行设置。")
+            "\n时间限制为60秒。猜歌时查歌等其他命令依然可用。\n警告：这个命令可能会很刷屏，管理员可以使用【猜歌设置】指令进行设置。")
         asyncio.create_task(audio_guess_music_loop(bot, event, state))
         asyncio.create_task(preload_audio_guess(event.group_id))
 

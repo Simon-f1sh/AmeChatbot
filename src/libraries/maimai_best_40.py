@@ -2,7 +2,7 @@
 import asyncio
 import os
 import math
-from random import shuffle
+from random import shuffle, sample
 from typing import Optional, Dict, List, Tuple
 
 import aiohttp
@@ -510,11 +510,12 @@ async def analyze(payload: Dict, num: int = 3) -> Tuple[Optional[Image.Image], b
         if sd_length > 0:
             sd_lowest_ra = sd_best[sd_length - 1].ra
             sd_upper_ds = round(compute_ds(sd_lowest_ra, 99.5) + 0.1, 1)
-            sd_lower_ds = round(compute_ds(sd_lowest_ra, 100.5) + 0.1, 1)
-            sd_sample_list = total_list.filter(ds=(sd_lower_ds, sd_upper_ds), is_new=False)
+            sd_upper_ds = round(compute_ds(sd_lowest_ra, 100.5) + 0.1, 1) - 0.1
+            sd_sample_list = total_list.filter(ds=15.0, is_new=False)
+            sd_sample_list.extend(total_list.filter(ds=14.9, is_new=False))
             shuffle(sd_sample_list)
             sd_chosen_list = random_musics(sd_sample_list, sd, sd_lowest_ra if sd_length == 25 else 0, num)
-            achievement = 99.5
+            achievement = 99.5 + 1.0
             while len(sd_chosen_list) < num and round(sd_upper_ds + 0.1, 1) <= 15.0 and achievement > 0:
                 achievement = round(achievement - 1.0)
                 sd_lower_ds = round(sd_upper_ds + 0.1, 1)
@@ -546,11 +547,11 @@ async def analyze(payload: Dict, num: int = 3) -> Tuple[Optional[Image.Image], b
         if dx_length > 0:
             dx_lowest_ra = dx_best[dx_length - 1].ra
             dx_upper_ds = round(compute_ds(dx_lowest_ra, 99.5) + 0.1, 1)
-            dx_lower_ds = round(compute_ds(dx_lowest_ra, 100.5) + 0.1, 1)
-            dx_sample_list = total_list.filter(ds=(dx_lower_ds, dx_upper_ds), is_new=True)
+            dx_upper_ds = round(compute_ds(dx_lowest_ra, 100.5) + 0.1, 1) - 0.1
+            dx_sample_list = total_list.filter(ds=(14.6, 15.0), is_new=True)
             shuffle(dx_sample_list)
             dx_chosen_list = random_musics(dx_sample_list, dx, dx_lowest_ra if dx_length == 15 else 0, num)
-            achievement = 99.5
+            achievement = 99.5 + 1.0
             while len(dx_chosen_list) < num and round(dx_upper_ds + 0.1, 1) <= 15.0 and achievement > 0:
                 achievement = round(achievement - 1.0)
                 dx_lower_ds = round(dx_upper_ds + 0.1, 1)
