@@ -796,7 +796,7 @@ async def _(bot: Bot, event: GroupMessageEvent, state: T_State):
         guess = GuessObject(is_text)
     else:
         guess = preload_audio_guess_dict.get(str(event.group_id))
-        if not guess or not os.path.exists(guess.temp_path):
+        if not guess or not guess.temp_path or not os.path.exists(guess.temp_path):
             guess = GuessObject(is_text)
             guess.clip_url, guess.temp_path = await download_music_and_to_clip(guess.music['id'])
     guess_dict[k] = guess
