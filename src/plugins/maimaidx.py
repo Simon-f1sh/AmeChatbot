@@ -611,20 +611,20 @@ async def _(bot: Bot, event: Event, state: T_State):
         ]))
 
 
-ra_analysis = on_regex(r"^([0-9]*)底分分析(.*)$")
+ra_analysis = on_regex(r"^(.*)底分分析([0-9]*)$")
 
 
 @ra_analysis.handle()
 async def _(bot: Bot, event: Event, state: T_State):
-    regex = r"^([0-9]*)底分分析(.*)$"
+    regex = r"(.*)底分分析([0-9]*)"
     res = re.match(regex, str(event.get_message()))
     num = 3
     username = ""
     try:
-        if res.group(1) != "":
-            num = int(res.group(1))
         if res.group(2) != "":
-            username = str(res.group(2)).strip()
+            num = int(res.group(2))
+        if res.group(1) != "":
+            username = str(res.group(1)).strip()
     except Exception as e:
         print("Exception: " + e)
         await ra_analysis.finish("命令错误，请检查语法")
