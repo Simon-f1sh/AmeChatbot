@@ -328,7 +328,7 @@ class DrawBest(object):
         if self.qq:
             response = requests.get(f"https://ssl.ptlogin2.qq.com/getface?imgtype=4&uin={self.qq}")
             regex = r'pt.setHeader\({"' + self.qq + r'":"(.+)"}\)'
-            avatar_ori = Image.open(urlopen(re.match(regex, response.text).group(1))).convert('RGBA')
+            avatar_ori = Image.open(urlopen(re.match(regex, response.text).group(1))).convert('RGBA').resize((140, 140))
             avatar_frame = Image.open(self.pic_dir + 'avatar_frame.png').convert('RGBA')
             avatar_ori_w, avatar_ori_h = avatar_ori.size
             avatar = Image.new('RGB', (avatar_ori_w + 20, avatar_ori_h + 20), (255, 255, 255))
