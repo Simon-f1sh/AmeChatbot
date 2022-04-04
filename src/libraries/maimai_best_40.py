@@ -2,10 +2,14 @@
 import asyncio
 import os
 import math
+import re
+import shelve
 from random import shuffle
 from typing import Optional, Dict, List, Tuple
+from urllib.request import urlopen
 
 import aiohttp
+import requests
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 from .maimaidx_music import total_list
@@ -89,7 +93,8 @@ class BestList(object):
 
 class DrawBest(object):
 
-    def __init__(self, sdBest: BestList, dxBest: BestList, userName: str, playerRating: int, musicRating: int):
+    def __init__(self, payload: Dict, sdBest: BestList, dxBest: BestList, userName: str, playerRating: int, musicRating: int):
+        self.qq = payload.get("qq")
         self.sdBest = sdBest
         self.dxBest = dxBest
         self.userName = self._stringQ2B(userName)
@@ -99,6 +104,21 @@ class DrawBest(object):
         self.pic_dir = 'src/static/mai/pic/'
         self.cover_dir = 'src/static/mai/cover/'
         self.img = Image.open(self.pic_dir + 'UI_TTR_BG_Base_Plus.png').convert('RGBA')
+        setting_dict = shelve.open('src/static/b40_setting.db')
+        if not self.qq or self.qq not in setting_dict:
+            setting_dict.close()
+            self.avatar_index = "209501"
+            self.plate_index = "200501_1"
+        else:
+            setting_stat = setting_dict[self.qq]
+            setting_dict.close()
+            if setting_stat.get("bg"):
+                bg_size = self.img.size
+                self.img = Image.open(self.pic_dir + f'bg/UI_Frame_{setting_stat["bg"]}.png').convert('RGBA')
+                self.img = self.img.resize(bg_size).filter(ImageFilter.GaussianBlur(2))
+            self.avatar_index = setting_stat["avatar"] if setting_stat.get("avatar") else None
+            self.qq = None if self.avatar_index else self.qq
+            self.plate_index = setting_stat["plate"] if setting_stat.get("plate") else "200501_1"
         self.ROWS_IMG = [2]
         for i in range(6):
             self.ROWS_IMG.append(116 + 96 * i)
@@ -188,7 +208,7 @@ class DrawBest(object):
             theRa = theRa // 10
             digitImg = Image.open(self.pic_dir + f'UI_NUM_Drating_{digit}.png').convert('RGBA')
             digitImg = self._resizePic(digitImg, 0.6)
-            ratingBaseImg.paste(digitImg, (COLOUMS_RATING[i] - 2, 9), mask=digitImg.split()[3])
+            ratingBaseImg.paste(digitImg, (COLOUMS_RATING[i] - 1, 11), mask=digitImg.split()[3])
             i = i - 1
         return ratingBaseImg
 
@@ -226,12 +246,12 @@ class DrawBest(object):
             tempDraw.text((7, 28), f'{"%.4f" % chartInfo.achievement}%', 'white', font)
             rankImg = Image.open(self.pic_dir + f'UI_GAM_Rank_{rankPic[chartInfo.scoreId]}.png').convert('RGBA')
             rankImg = self._resizePic(rankImg, 0.3)
-            temp.paste(rankImg, (88, 28), rankImg.split()[3])
+            temp.paste(rankImg, (83, 29), rankImg.split()[3])
             if chartInfo.comboId:
                 comboImg = Image.open(self.pic_dir + f'UI_MSS_MBase_Icon_{comboPic[chartInfo.comboId]}_S.png').convert(
                     'RGBA')
                 comboImg = self._resizePic(comboImg, 0.45)
-                temp.paste(comboImg, (119, 27), comboImg.split()[3])
+                temp.paste(comboImg, (119, 26), comboImg.split()[3])
             font = ImageFont.truetype('src/static/adobe_simhei.otf', 12, encoding='utf-8')
             tempDraw.text((8, 44), f'Base: {chartInfo.ds} -> {chartInfo.ra}', 'white', font)
             font = ImageFont.truetype('src/static/adobe_simhei.otf', 18, encoding='utf-8')
@@ -276,12 +296,12 @@ class DrawBest(object):
             tempDraw.text((7, 28), f'{"%.4f" % chartInfo.achievement}%', 'white', font)
             rankImg = Image.open(self.pic_dir + f'UI_GAM_Rank_{rankPic[chartInfo.scoreId]}.png').convert('RGBA')
             rankImg = self._resizePic(rankImg, 0.3)
-            temp.paste(rankImg, (88, 28), rankImg.split()[3])
+            temp.paste(rankImg, (83, 29), rankImg.split()[3])
             if chartInfo.comboId:
                 comboImg = Image.open(self.pic_dir + f'UI_MSS_MBase_Icon_{comboPic[chartInfo.comboId]}_S.png').convert(
                     'RGBA')
                 comboImg = self._resizePic(comboImg, 0.45)
-                temp.paste(comboImg, (119, 27), comboImg.split()[3])
+                temp.paste(comboImg, (119, 26), comboImg.split()[3])
             font = ImageFont.truetype('src/static/adobe_simhei.otf', 12, encoding='utf-8')
             tempDraw.text((8, 44), f'Base: {chartInfo.ds} -> {chartInfo.ra}', 'white', font)
             font = ImageFont.truetype('src/static/adobe_simhei.otf', 18, encoding='utf-8')
@@ -301,24 +321,46 @@ class DrawBest(object):
             img.paste(temp, (self.COLOUMS_IMG[j + 6] + 4, self.ROWS_IMG[i + 1] + 4))
 
     def draw(self):
-        splashLogo = Image.open(self.pic_dir + 'UI_CMN_TabTitle_MaimaiTitle_Ver214.png').convert('RGBA')
-        splashLogo = self._resizePic(splashLogo, 0.65)
-        self.img.paste(splashLogo, (10, 10), mask=splashLogo.split()[3])
+        plate = Image.open(self.pic_dir + f'plate/UI_Plate_{self.plate_index}.png').convert('RGBA')
+        plate = self._resizePic(plate, 0.90)
+        self.img.paste(plate, (6, 8), mask=plate.split()[3])
+
+        if self.qq:
+            response = requests.get(f"https://ssl.ptlogin2.qq.com/getface?imgtype=4&uin={self.qq}")
+            regex = r'pt.setHeader\({"' + self.qq + r'":"(.+)"}\)'
+            avatar_ori = Image.open(urlopen(re.match(regex, response.text).group(1))).convert('RGBA')
+            avatar_frame = Image.open(self.pic_dir + 'avatar_frame.png').convert('RGBA')
+            avatar_ori_w, avatar_ori_h = avatar_ori.size
+            avatar = Image.new('RGB', (avatar_ori_w + 20, avatar_ori_h + 20), (255, 255, 255))
+            avatar.paste(avatar_ori, (10, 10))
+            mask = Image.new("L", avatar.size, 0)
+            draw = ImageDraw.Draw(mask)
+            draw.ellipse((8, 8, avatar_ori_w + 11, avatar_ori_h + 11), fill=255)
+            avatar_frame = self._resizePic(avatar_frame, avatar.size[0] / avatar_frame.size[0])
+            avatar = Image.composite(avatar, avatar_frame, mask)
+            avatar = self._resizePic(avatar, 0.55)
+            self.img.paste(avatar, (15, 15), mask=avatar.split()[3])
+        else:
+            avatar = Image.open(self.pic_dir + f'avatar/UI_Icon_{self.avatar_index}.png').convert('RGBA')
+            avatar = self._resizePic(avatar, 0.70)
+            self.img.paste(avatar, (15, 15), mask=avatar.split()[3])
+        # splashLogo = Image.open(self.pic_dir + 'UI_CMN_TabTitle_MaimaiTitle_Ver214.png').convert('RGBA')
 
         ratingBaseImg = Image.open(self.pic_dir + self._findRaPic()).convert('RGBA')
         ratingBaseImg = self._drawRating(ratingBaseImg)
-        ratingBaseImg = self._resizePic(ratingBaseImg, 0.85)
-        self.img.paste(ratingBaseImg, (240, 8), mask=ratingBaseImg.split()[3])
+        ratingBaseImg = self._resizePic(ratingBaseImg, 0.855)
+        self.img.paste(ratingBaseImg, (108, 11), mask=ratingBaseImg.split()[3])
 
         namePlateImg = Image.open(self.pic_dir + 'UI_TST_PlateMask.png').convert('RGBA')
-        namePlateImg = namePlateImg.resize((285, 40))
+        namePlateImg = namePlateImg.resize((280, 40))
         namePlateDraw = ImageDraw.Draw(namePlateImg)
         font1 = ImageFont.truetype('src/static/msyh.ttc', 28, encoding='unic')
-        namePlateDraw.text((12, 4), ' '.join(list(self.userName)), 'black', font1)
+        namePlateDraw.text((12, 1), ' '.join(list(self.userName)), 'black', font1)
         nameDxImg = Image.open(self.pic_dir + 'UI_CMN_Name_DX.png').convert('RGBA')
         nameDxImg = self._resizePic(nameDxImg, 0.9)
         namePlateImg.paste(nameDxImg, (230, 4), mask=nameDxImg.split()[3])
-        self.img.paste(namePlateImg, (240, 40), mask=namePlateImg.split()[3])
+        namePlateImg = self._resizePic(namePlateImg, 0.84)
+        self.img.paste(namePlateImg, (110, 48), mask=namePlateImg.split()[3])
 
         shougouImg = Image.open(self.pic_dir + 'UI_CMN_Shougou_Rainbow.png').convert('RGBA')
         shougouDraw = ImageDraw.Draw(shougouImg)
@@ -326,7 +368,7 @@ class DrawBest(object):
         playCountInfo = f'底分: {self.musicRating} + 段位分: {self.rankRating}'
         shougouImgW, shougouImgH = shougouImg.size
         playCountInfoW, playCountInfoH = shougouDraw.textsize(playCountInfo, font2)
-        textPos = ((shougouImgW - playCountInfoW - font2.getoffset(playCountInfo)[0]) / 2, 5)
+        textPos = ((shougouImgW - playCountInfoW - font2.getoffset(playCountInfo)[0]) / 2, 8)
         shougouDraw.text((textPos[0] - 1, textPos[1]), playCountInfo, 'black', font2)
         shougouDraw.text((textPos[0] + 1, textPos[1]), playCountInfo, 'black', font2)
         shougouDraw.text((textPos[0], textPos[1] - 1), playCountInfo, 'black', font2)
@@ -336,21 +378,22 @@ class DrawBest(object):
         shougouDraw.text((textPos[0] - 1, textPos[1] + 1), playCountInfo, 'black', font2)
         shougouDraw.text((textPos[0] + 1, textPos[1] + 1), playCountInfo, 'black', font2)
         shougouDraw.text(textPos, playCountInfo, 'white', font2)
-        shougouImg = self._resizePic(shougouImg, 1.05)
-        self.img.paste(shougouImg, (240, 83), mask=shougouImg.split()[3])
+        shougouImg = self._resizePic(shougouImg, 0.88)
+        self.img.paste(shougouImg, (107, 81), mask=shougouImg.split()[3])
 
         self._drawBestList(self.img, self.sdBest, self.dxBest)
 
         authorBoardImg = Image.open(self.pic_dir + 'UI_CMN_MiniDialog_01.png').convert('RGBA')
         authorBoardImg = self._resizePic(authorBoardImg, 0.35)
         authorBoardDraw = ImageDraw.Draw(authorBoardImg)
-        authorBoardDraw.text((31, 28), '   Generated By\nXybBot & Chiyuki', 'black', font2)
-        self.img.paste(authorBoardImg, (1224, 19), mask=authorBoardImg.split()[3])
+        font_author = ImageFont.truetype('src/static/adobe_simhei.otf', 12, encoding='utf-8')
+        authorBoardDraw.text((42, 30), '      Credit to\nXybBot & Chiyuki\n   Generated By\n        Ame bot', 'black', font_author)
+        self.img.paste(authorBoardImg, (1220, 6), mask=authorBoardImg.split()[3])
 
         dxImg = Image.open(self.pic_dir + 'UI_RSL_MBase_Parts_01.png').convert('RGBA')
-        self.img.paste(dxImg, (890, 65), mask=dxImg.split()[3])
+        self.img.paste(dxImg, (890, 85), mask=dxImg.split()[3])
         sdImg = Image.open(self.pic_dir + 'UI_RSL_MBase_Parts_02.png').convert('RGBA')
-        self.img.paste(sdImg, (758, 65), mask=sdImg.split()[3])
+        self.img.paste(sdImg, (775, 85), mask=sdImg.split()[3])
 
         # self.img.show()
 
@@ -445,7 +488,7 @@ async def generate(payload: Dict) -> Tuple[Optional[Image.Image], bool]:
             sd_best.push(ChartInfo.from_json(c))
         for c in dx:
             dx_best.push(ChartInfo.from_json(c))
-        pic = DrawBest(sd_best, dx_best, obj["nickname"], obj["rating"] + obj["additional_rating"],
+        pic = DrawBest(payload, sd_best, dx_best, obj["nickname"], obj["rating"] + obj["additional_rating"],
                        obj["rating"]).getDir()
         return pic, 0
 

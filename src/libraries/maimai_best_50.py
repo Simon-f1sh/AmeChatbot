@@ -190,7 +190,7 @@ class DrawBest(object):
             theRa = theRa // 10
             digitImg = Image.open(self.pic_dir + f'UI_NUM_Drating_{digit}.png').convert('RGBA')
             digitImg = self._resizePic(digitImg, 0.6)
-            ratingBaseImg.paste(digitImg, (COLOUMS_RATING[i] - 2, 9), mask=digitImg.split()[3])
+            ratingBaseImg.paste(digitImg, (COLOUMS_RATING[i] - 1, 11), mask=digitImg.split()[3])
             i = i - 1
         return ratingBaseImg
 
@@ -228,11 +228,11 @@ class DrawBest(object):
             tempDraw.text((7, 28), f'{"%.4f" % chartInfo.achievement}%', 'white', font)
             rankImg = Image.open(self.pic_dir + f'UI_GAM_Rank_{rankPic[chartInfo.scoreId]}.png').convert('RGBA')
             rankImg = self._resizePic(rankImg, 0.3)
-            temp.paste(rankImg, (72, 28), rankImg.split()[3])
+            temp.paste(rankImg, (70, 28), rankImg.split()[3])
             if chartInfo.comboId:
                 comboImg = Image.open(self.pic_dir + f'UI_MSS_MBase_Icon_{comboPic[chartInfo.comboId]}_S.png').convert('RGBA')
                 comboImg = self._resizePic(comboImg, 0.45)
-                temp.paste(comboImg, (103, 27), comboImg.split()[3])
+                temp.paste(comboImg, (103, 25), comboImg.split()[3])
             font = ImageFont.truetype('src/static/adobe_simhei.otf', 12, encoding='utf-8')
             tempDraw.text((8, 44), f'Base: {chartInfo.ds} -> {computeRa(chartInfo.ds, chartInfo.achievement)}', 'white', font)
             font = ImageFont.truetype('src/static/adobe_simhei.otf', 18, encoding='utf-8')
@@ -277,12 +277,12 @@ class DrawBest(object):
             tempDraw.text((7, 28), f'{"%.4f" % chartInfo.achievement}%', 'white', font)
             rankImg = Image.open(self.pic_dir + f'UI_GAM_Rank_{rankPic[chartInfo.scoreId]}.png').convert('RGBA')
             rankImg = self._resizePic(rankImg, 0.3)
-            temp.paste(rankImg, (72, 28), rankImg.split()[3])
+            temp.paste(rankImg, (70, 28), rankImg.split()[3])
             if chartInfo.comboId:
                 comboImg = Image.open(self.pic_dir + f'UI_MSS_MBase_Icon_{comboPic[chartInfo.comboId]}_S.png').convert(
                     'RGBA')
                 comboImg = self._resizePic(comboImg, 0.45)
-                temp.paste(comboImg, (103, 27), comboImg.split()[3])
+                temp.paste(comboImg, (103, 25), comboImg.split()[3])
             font = ImageFont.truetype('src/static/adobe_simhei.otf', 12, encoding='utf-8')
             tempDraw.text((8, 44), f'Base: {chartInfo.ds} -> {chartInfo.ra}', 'white', font)
             font = ImageFont.truetype('src/static/adobe_simhei.otf', 18, encoding='utf-8')
@@ -302,14 +302,14 @@ class DrawBest(object):
             img.paste(temp, (self.COLOUMS_IMG[j + 8] + 4, self.ROWS_IMG[i + 1] + 4))
 
     def draw(self):
-        splashLogo = Image.open(self.pic_dir + 'UI_CMN_TabTitle_MaimaiTitle_Ver214.png').convert('RGBA')
-        splashLogo = self._resizePic(splashLogo, 0.65)
-        self.img.paste(splashLogo, (10, 10), mask=splashLogo.split()[3])
+        uniLogo = Image.open(self.pic_dir + 'UI_CMN_TabTitle_MaimaiTitle_Ver220.png').convert('RGBA')
+        uniLogo = self._resizePic(uniLogo, 0.70)
+        self.img.paste(uniLogo, (10, 10), mask=uniLogo.split()[3])
 
         ratingBaseImg = Image.open(self.pic_dir + self._findRaPic()).convert('RGBA')
         ratingBaseImg = self._drawRating(ratingBaseImg)
         ratingBaseImg = self._resizePic(ratingBaseImg, 0.85)
-        self.img.paste(ratingBaseImg, (240, 8), mask=ratingBaseImg.split()[3])
+        self.img.paste(ratingBaseImg, (230, 8), mask=ratingBaseImg.split()[3])
 
         namePlateImg = Image.open(self.pic_dir + 'UI_TST_PlateMask.png').convert('RGBA')
         namePlateImg = namePlateImg.resize((285, 40))
@@ -319,7 +319,7 @@ class DrawBest(object):
         nameDxImg = Image.open(self.pic_dir + 'UI_CMN_Name_DX.png').convert('RGBA')
         nameDxImg = self._resizePic(nameDxImg, 0.9)
         namePlateImg.paste(nameDxImg, (230, 4), mask=nameDxImg.split()[3])
-        self.img.paste(namePlateImg, (240, 40), mask=namePlateImg.split()[3])
+        self.img.paste(namePlateImg, (230, 40), mask=namePlateImg.split()[3])
 
         shougouImg = Image.open(self.pic_dir + 'UI_CMN_Shougou_Rainbow.png').convert('RGBA')
         shougouDraw = ImageDraw.Draw(shougouImg)
@@ -327,7 +327,7 @@ class DrawBest(object):
         playCountInfo = f'SD: {self.sdRating} + DX: {self.dxRating} = {self.playerRating}'
         shougouImgW, shougouImgH = shougouImg.size
         playCountInfoW, playCountInfoH = shougouDraw.textsize(playCountInfo, font2)
-        textPos = ((shougouImgW - playCountInfoW - font2.getoffset(playCountInfo)[0]) / 2, 5)
+        textPos = ((shougouImgW - playCountInfoW - font2.getoffset(playCountInfo)[0]) / 2, 8)
         shougouDraw.text((textPos[0] - 1, textPos[1]), playCountInfo, 'black', font2)
         shougouDraw.text((textPos[0] + 1, textPos[1]), playCountInfo, 'black', font2)
         shougouDraw.text((textPos[0], textPos[1] - 1), playCountInfo, 'black', font2)
@@ -338,20 +338,21 @@ class DrawBest(object):
         shougouDraw.text((textPos[0] + 1, textPos[1] + 1), playCountInfo, 'black', font2)
         shougouDraw.text(textPos, playCountInfo, 'white', font2)
         shougouImg = self._resizePic(shougouImg, 1.05)
-        self.img.paste(shougouImg, (240, 83), mask=shougouImg.split()[3])
+        self.img.paste(shougouImg, (230, 81), mask=shougouImg.split()[3])
 
         self._drawBestList(self.img, self.sdBest, self.dxBest)
 
         authorBoardImg = Image.open(self.pic_dir + 'UI_CMN_MiniDialog_01.png').convert('RGBA')
         authorBoardImg = self._resizePic(authorBoardImg, 0.35)
         authorBoardDraw = ImageDraw.Draw(authorBoardImg)
-        authorBoardDraw.text((31, 28), '   Generated By\nXybBot & Chiyuki', 'black', font2)
-        self.img.paste(authorBoardImg, (1224, 19), mask=authorBoardImg.split()[3])
+        font_author = ImageFont.truetype('src/static/adobe_simhei.otf', 12, encoding='utf-8')
+        authorBoardDraw.text((42, 30), '      Credit to\nXybBot & Chiyuki\n   Generated By\n        Ame bot', 'black', font_author)
+        self.img.paste(authorBoardImg, (1220, 6), mask=authorBoardImg.split()[3])
 
         dxImg = Image.open(self.pic_dir + 'UI_RSL_MBase_Parts_01.png').convert('RGBA')
-        self.img.paste(dxImg, (988, 65), mask=dxImg.split()[3])
+        self.img.paste(dxImg, (990, 85), mask=dxImg.split()[3])
         sdImg = Image.open(self.pic_dir + 'UI_RSL_MBase_Parts_02.png').convert('RGBA')
-        self.img.paste(sdImg, (865, 65), mask=sdImg.split()[3])
+        self.img.paste(sdImg, (885, 85), mask=sdImg.split()[3])
 
         # self.img.show()
 

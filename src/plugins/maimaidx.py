@@ -1,3 +1,4 @@
+import json
 import shutil
 from collections import defaultdict
 from typing import List, Dict, Any, Tuple
@@ -149,6 +150,7 @@ async def _(bot: Bot, event: Event, state: T_State):
 
 
 spec_rand = on_regex(r"^随个(?:dx|sd|标准)?[绿黄红紫白]?[0-9]+\+?", priority=0)
+# 坑：spec_rand = on_regex(r"^随个(dx|sd|标准)?(VE|E|M|H|VH)?[绿黄红紫白]?[0-9]+(\.[0-9]|\+?)", priority=0)
 
 
 @spec_rand.handle()
@@ -609,6 +611,20 @@ async def _(bot: Bot, event: Event, state: T_State):
                 }
             }
         ]))
+
+
+best_4050_py = on_command("劈歪", permission=SUPERUSER, rule=to_me())
+
+
+@best_4050_py.handle()
+async def _(bot: Bot, event: Event, state: T_State):
+    with open("src/static/best4050_py.json", mode='rb') as f:
+        py_dict = json.loads(f.read())
+        setting_dict = shelve.open('src/static/b40_setting.db', writeback=True)
+        for key in py_dict:
+            setting_dict[key] = py_dict[key]
+        setting_dict.close()
+        await best_4050_py.finish("劈歪成功")
 
 
 ra_analysis = on_regex(r"^(.*)底分分析([0-9]*)$")
