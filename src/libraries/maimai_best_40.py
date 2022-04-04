@@ -342,7 +342,7 @@ class DrawBest(object):
             self.img.paste(avatar, (15, 15), mask=avatar.split()[3])
         else:
             avatar = Image.open(self.pic_dir + f'avatar/UI_Icon_{self.avatar_index}.png').convert('RGBA')
-            avatar = self._resizePic(avatar, 0.70)
+            avatar = avatar.resize((89, 89))
             self.img.paste(avatar, (15, 15), mask=avatar.split()[3])
         # splashLogo = Image.open(self.pic_dir + 'UI_CMN_TabTitle_MaimaiTitle_Ver214.png').convert('RGBA')
 
