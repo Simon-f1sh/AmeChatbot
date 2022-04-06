@@ -175,10 +175,12 @@ class DrawBest(object):
             num = '06'
         elif self.playerRating < 13000:
             num = '07'
-        elif self.playerRating < 14500:
+        elif self.playerRating < 14000:
             num = '08'
-        elif self.playerRating < 15000:
+        elif self.playerRating < 14500:
             num = '09'
+        elif self.playerRating < 15000:
+            num = '09+'
         return f'UI_CMN_DXRating_S_{num}.png'
 
     def _drawRating(self, ratingBaseImg:Image.Image):
