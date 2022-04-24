@@ -179,7 +179,7 @@ async def find_rank_with_id(music_id: str, diff_play_count_list: List[List[Any]]
 async def search_pop_rank(diff_labels: List[str], diff_index: int, is_id: bool, music_id_or_rank: Union[str, int]):
     if is_id:
         music_id = music_id_or_rank
-        if diff_index:
+        if diff_index is not None:
             diff_rank, data = await find_rank_with_id(music_id, play_count_list[diff_index])
             if data is None:
                 return None, "未找到歌曲"
@@ -195,7 +195,7 @@ async def search_pop_rank(diff_labels: List[str], diff_index: int, is_id: bool, 
             return None, "请输入难度（绿，黄，红，紫，白）"
     else:
         rank = music_id_or_rank
-        if diff_index:
+        if diff_index is not None:
             if rank > len(play_count_list[diff_index]) or rank <= 0:
                 return None, "输入有误捏"
             data = play_count_list[diff_index][rank-1]

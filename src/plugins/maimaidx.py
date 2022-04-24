@@ -393,10 +393,14 @@ async def _(bot: Bot, event: Event, state: T_State):
 
     result = await search_pop_rank(diff_labels, diff_index, is_id, music_id_or_rank)
 
-    if result[0]:
-        await pop_rank.finish(result[0])
-    else:
-        await pop_rank.finish(result[1])
+    try:
+        if result[0]:
+            await pop_rank.finish(result[0])
+        else:
+            await pop_rank.finish(result[1])
+    except ActionFailed:
+        await pop_rank.send("风控捏")
+        print(f"风控信息: {result}")
 
 
 wm_list = ['拼机', '推分', '越级', '下埋', '夜勤', '练底力', '练手法', '打旧框', '干饭', '抓绝赞', '收歌']
