@@ -10,7 +10,7 @@ from sts.sts import Sts
 from nonebot.adapters.cqhttp import MessageSegment
 from typing import Dict
 
-from .CONST import mai_tmp_folder
+from src.libraries.CONST import mai_tmp_folder
 
 # 配置腾讯api
 
@@ -93,7 +93,14 @@ async def search_audio(music: Dict):
                                        response,
                                        f"{music_id}. {music['title']}",
                                        music['basic_info']['artist'],
-                                       f"https://www.diving-fish.com/covers/{music_id}.jpg")
+                                       f"https://www.diving-fish.com/covers/{get_cover_len4_id(music_id)}.png")
+
+
+def get_cover_len4_id(mid) -> str:
+    mid = int(mid)
+    if 10001 <= mid:
+        mid -= 10000
+    return f'{mid:04d}'
 
 
 async def create_temp_token(sound_id: str):

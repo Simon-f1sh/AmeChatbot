@@ -12,8 +12,8 @@ import aiohttp
 import requests
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
-from .maimaidx_music import total_list
-from .image import text_to_image
+from src.libraries.maimaidx_music import total_list, get_cover_len4_id
+from src.libraries.image import text_to_image
 
 scoreRank = 'D C B BB BBB A AA AAA S S+ SS SS+ SSS SSS+'.split(' ')
 combo = ' FC FC+ AP AP+'.split(' ')
@@ -225,7 +225,7 @@ class DrawBest(object):
             i = num // 5
             j = num % 5
             chartInfo = sdBest[num]
-            pngPath = self.cover_dir + f'{chartInfo.idNum}.jpg'
+            pngPath = self.cover_dir + f'{get_cover_len4_id(chartInfo.idNum)}.png'
             if not os.path.exists(pngPath):
                 pngPath = self.cover_dir + '1000.png'
             temp = Image.open(pngPath).convert('RGB')
@@ -273,9 +273,9 @@ class DrawBest(object):
             i = num // 3
             j = num % 3
             chartInfo = dxBest[num]
-            pngPath = self.cover_dir + f'{int(chartInfo.idNum)}.jpg'
+            pngPath = self.cover_dir + f'{get_cover_len4_id(chartInfo.idNum)}.png'
             if not os.path.exists(pngPath):
-                pngPath = self.cover_dir + f'{int(chartInfo.idNum)}.png'
+                pngPath = self.cover_dir + f'{get_cover_len4_id(chartInfo.idNum)}.png'
             if not os.path.exists(pngPath):
                 pngPath = self.cover_dir + '1000.png'
             temp = Image.open(pngPath).convert('RGB')
